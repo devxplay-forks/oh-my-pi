@@ -306,7 +306,20 @@ function parseSizeValue(value: SizeValue | undefined, referenceSize: number): nu
 
 /** Detect terminal multiplexers where scrollback clearing and height-change redraws are hostile. */
 function isMultiplexerSession(): boolean {
-	return Boolean(Bun.env.TMUX || Bun.env.STY || Bun.env.ZELLIJ);
+	const hasMultiplexer = Boolean(Bun.env.TMUX || Bun.env.STY || Bun.env.ZELLIJ);
+	if (!hasMultiplexer) {
+		return false;
+	}
+	// Modern, highly compliant terminal emulators correctly isolate multiplexer panes,
+	// support scrollback boundaries natively, and prevent escape leaks (such as \x1b[3J clearing parent history).
+	// We can safely allow normal scrollback for these.
+	const isSafeTerminal = ["ghostty", "kitty", "wezterm", "iterm2", "vscode"].includes(TERMINAL.id);
+	if (isSafeTerminal) {
+		return false;
+	}
+	// Legacy, low-spec, or non-compliant terminal emulators (like Apple Terminal.app or older Windows Terminals)
+	// are treated as hostile multiplexer hosts. We restrict them to viewport-only repaints to prevent history loss.
+	return true;
 }
 
 /**
