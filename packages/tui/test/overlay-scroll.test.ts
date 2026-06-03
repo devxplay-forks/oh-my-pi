@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { type Component, CURSOR_MARKER, TUI } from "@oh-my-pi/pi-tui";
+import { type Component, CURSOR_MARKER, TERMINAL, TUI } from "@oh-my-pi/pi-tui";
 import { VirtualTerminal } from "./virtual-terminal";
 
 class LineComponent implements Component {
@@ -211,50 +211,90 @@ describe("TUI overlays", () => {
 		tui.stop();
 	});
 	it("preserves multiplexer scrollback when replacing terminal history", async () => {
-		await withEnv("TMUX", "1", async () => {
-			const term = new VirtualTerminal(40, 4);
-			const tui = new TUI(term);
-			const component = new MutableContentComponent(buildRows(120));
-			tui.addChild(component);
+		const originalId = TERMINAL.id;
+		Object.defineProperty(TERMINAL, "id", { value: "base", configurable: true });
+		try {
+			await withEnv("TMUX", "1", async () => {
+				const term = new VirtualTerminal(40, 4);
+				const tui = new TUI(term);
+				const component = new MutableContentComponent(buildRows(120));
+				tui.addChild(component);
 
-			tui.start();
-			await flushRender(term);
-			expect(term.getScrollBuffer().join("\n").includes("row-0")).toBeTruthy();
-
-			component.setLines(["new-session-0", "new-session-1", "new-session-2", "new-session-3"]);
-			tui.requestRender(true, { clearScrollback: true });
-			await flushRender(term);
-
-			const scrollback = term.getScrollBuffer().join("\n");
-			expect(scrollback.includes("row-0")).toBeTruthy();
-			expect(term.getViewport().join("\n").includes("new-session-3")).toBeTruthy();
-
-			tui.stop();
-		});
-	});
-	it("keeps hidden tmux overlays out of the viewport while preserving pane history", async () => {
-		await withEnv("TMUX", "1", async () => {
-			const term = new VirtualTerminal(16, 4);
-			const tui = new TUI(term);
-			tui.addChild(new MutableContentComponent(buildRows(80)));
-			try {
 				tui.start();
 				await flushRender(term);
-
-				const handle = tui.showOverlay(new LineComponent("OV_SENTINEL_", 2), { anchor: "top-left" });
-				await flushRender(term);
-				term.resize(14, 4);
-				await flushRender(term);
-
-				handle.hide();
-				await flushRender(term);
-
-				expect(term.getViewport().join("\n").includes("OV_SENTINEL_")).toBeFalsy();
 				expect(term.getScrollBuffer().join("\n").includes("row-0")).toBeTruthy();
-			} finally {
+
+				component.setLines(["new-session-0", "new-session-1", "new-session-2", "new-session-3"]);
+				tui.requestRender(true, { clearScrollback: true });
+				await flushRender(term);
+
+				const scrollback = term.getScrollBuffer().join("\n");
+				expect(scrollback.includes("row-0")).toBeTruthy();
+				expect(term.getViewport().join("\n").includes("new-session-3")).toBeTruthy();
+
 				tui.stop();
-			}
-		});
+			});
+		} finally {
+			Object.defineProperty(TERMINAL, "id", { value: originalId, configurable: true });
+		}
+	});
+	it("clears multiplexer scrollback when replacing terminal history on safe modern terminals", async () => {
+		const originalId = TERMINAL.id;
+		Object.defineProperty(TERMINAL, "id", { value: "ghostty", configurable: true });
+		try {
+			await withEnv("TMUX", "1", async () => {
+				const term = new VirtualTerminal(40, 4);
+				const tui = new TUI(term);
+				const component = new MutableContentComponent(buildRows(120));
+				tui.addChild(component);
+
+				tui.start();
+				await flushRender(term);
+				expect(term.getScrollBuffer().join("\n").includes("row-0")).toBeTruthy();
+
+				component.setLines(["new-session-0", "new-session-1", "new-session-2", "new-session-3"]);
+				tui.requestRender(true, { clearScrollback: true });
+				await flushRender(term);
+
+				const scrollback = term.getScrollBuffer().join("\n");
+				expect(scrollback.includes("row-0")).toBeFalsy();
+				expect(term.getViewport().join("\n").includes("new-session-3")).toBeTruthy();
+
+				tui.stop();
+			});
+		} finally {
+			Object.defineProperty(TERMINAL, "id", { value: originalId, configurable: true });
+		}
+	});
+	it("keeps hidden tmux overlays out of the viewport while preserving pane history", async () => {
+		const originalId = TERMINAL.id;
+		Object.defineProperty(TERMINAL, "id", { value: "base", configurable: true });
+		try {
+			await withEnv("TMUX", "1", async () => {
+				const term = new VirtualTerminal(16, 4);
+				const tui = new TUI(term);
+				tui.addChild(new MutableContentComponent(buildRows(80)));
+				try {
+					tui.start();
+					await flushRender(term);
+
+					const handle = tui.showOverlay(new LineComponent("OV_SENTINEL_", 2), { anchor: "top-left" });
+					await flushRender(term);
+					term.resize(14, 4);
+					await flushRender(term);
+
+					handle.hide();
+					await flushRender(term);
+
+					expect(term.getViewport().join("\n").includes("OV_SENTINEL_")).toBeFalsy();
+					expect(term.getScrollBuffer().join("\n").includes("row-0")).toBeTruthy();
+				} finally {
+					tui.stop();
+				}
+			});
+		} finally {
+			Object.defineProperty(TERMINAL, "id", { value: originalId, configurable: true });
+		}
 	});
 
 	it("does not duplicate transcript into scrollback on repeated forced redraws", async () => {

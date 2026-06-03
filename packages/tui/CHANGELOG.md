@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added safe terminal emulator allowlist (`ghostty`, `kitty`, `wezterm`, `iterm2`, `vscode`) inside multiplexer sessions to safely enable normal scrollback and history clears for modern, highly compliant host terminals.
+
 ## [15.7.3] - 2026-05-31
 
 ### Added
