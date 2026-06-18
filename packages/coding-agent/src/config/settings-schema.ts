@@ -853,6 +853,16 @@ export const SETTINGS_SCHEMA = {
 			description: "Show per-turn token usage on assistant messages",
 		},
 	},
+	"terminal.showTurnIndicators": {
+		type: "boolean",
+		default: false,
+		ui: {
+			tab: "appearance",
+			group: "Display",
+			label: "Show Turn Indicators",
+			description: "Show Turn and Session Turn completed indicators in chat",
+		},
+	},
 
 	showHardwareCursor: {
 		type: "boolean",

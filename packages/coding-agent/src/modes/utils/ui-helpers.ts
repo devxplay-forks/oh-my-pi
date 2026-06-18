@@ -399,7 +399,12 @@ export class UiHelpers {
 			// updateResult armed.
 			previous.seal();
 		};
+		let turnCounter = 0;
+		let sessionTurnCounter = 0;
 		for (const message of sessionContext.messages) {
+			if (message.role === "user") {
+				turnCounter = 0;
+			}
 			if (message.role !== "toolResult") flushPendingUsage();
 			// Assistant messages need special handling for tool calls
 			if (message.role === "assistant") {
@@ -503,6 +508,28 @@ export class UiHelpers {
 					}
 				}
 				pendingUsage = this.ctx.settings.get("display.showTokenUsage") ? message.usage : undefined;
+				// Append historical turn indicators inline
+				if (this.ctx.settings.get("terminal.showTurnIndicators")) {
+					turnCounter++;
+					sessionTurnCounter++;
+					const toolCallsCount = message.content.filter(c => c.type === "toolCall").length;
+					if (toolCallsCount > 0) {
+						this.showStatus(
+							`✓ Turn ${turnCounter} (Session Turn ${sessionTurnCounter}) completed (${toolCallsCount} tool call${toolCallsCount > 1 ? "s" : ""} executed) • Sending results to model...`,
+						);
+					} else {
+						const baselineText = options.statusBaselineOverride || "Waiting for user...";
+						this.showStatus(
+							`✓ Turn ${turnCounter} (Session Turn ${sessionTurnCounter}) completed • ${baselineText}`,
+						);
+					}
+					// Decouple status references so it is treated as a fixed historical element
+					this.ctx.lastStatusSpacer = undefined;
+					this.ctx.lastStatusText = undefined;
+				} else if (options.statusBaselineOverride) {
+					// Fall back to original standard behavior when turn indicators are disabled
+					this.showStatus(options.statusBaselineOverride);
+				}
 			} else if (message.role === "toolResult") {
 				const pendingReadComponent = this.ctx.pendingTools.get(message.toolCallId);
 				const isReadGroupResult =

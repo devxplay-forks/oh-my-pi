@@ -258,7 +258,7 @@ export interface InteractiveModeContext {
 	): Component[];
 	renderSessionContext(
 		sessionContext: SessionContext,
-		options?: { updateFooter?: boolean; populateHistory?: boolean },
+		options?: { updateFooter?: boolean; populateHistory?: boolean; statusBaselineOverride?: string },
 	): void;
 	renderInitialMessages(options?: { preserveExistingChat?: boolean; clearTerminalHistory?: boolean }): void;
 	getUserMessageText(message: Message): string;

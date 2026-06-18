@@ -4912,6 +4912,11 @@ export class AgentSession {
 		return this.#postPromptTasks.size > 0;
 	}
 
+	/** Current turn index for this session execution */
+	get turnIndex(): number {
+		return this.#turnIndex;
+	}
+
 	/** All messages including custom types like BashExecutionMessage */
 	get messages(): AgentMessage[] {
 		return this.agent.state.messages;
