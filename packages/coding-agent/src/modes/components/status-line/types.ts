@@ -67,6 +67,7 @@ export interface SegmentContext {
 		enabled: boolean;
 		paused: boolean;
 	} | null;
+	activeModeName?: string | undefined;
 	collab: CollabStatus | null;
 	// Cached values for performance (computed once per render)
 	usageStats: {

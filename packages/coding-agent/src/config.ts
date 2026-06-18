@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CONFIG_DIR_NAME, getConfigAgentDirName, getProjectDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, getAgentDir, getConfigAgentDirName, getProjectDir } from "@oh-my-pi/pi-utils";
 import { expandTilde } from "./tools/path-utils";
 
 export * from "./config/config-file";
@@ -239,4 +239,14 @@ export function findAllNearestProjectConfigDirs(subpath: string, cwd: string = g
 	results.sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source));
 
 	return results;
+}
+
+/** Get path to modes config in ~/.omp/agent/modes.yml */
+export function getModesPath(): string {
+	const agentDir = getAgentDir();
+	const yamlPath = path.join(agentDir, "modes.yml");
+	if (fs.existsSync(yamlPath)) return yamlPath;
+	const ymlPath = path.join(agentDir, "modes.yaml");
+	if (fs.existsSync(ymlPath)) return ymlPath;
+	return yamlPath; // default
 }
