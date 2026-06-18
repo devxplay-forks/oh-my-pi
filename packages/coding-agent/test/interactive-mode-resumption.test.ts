@@ -41,7 +41,7 @@ fast:
   model: claude-haiku-4-5
   provider: anthropic
   thinkingLevel: off
-`
+`,
 		);
 
 		session = new AgentSession({

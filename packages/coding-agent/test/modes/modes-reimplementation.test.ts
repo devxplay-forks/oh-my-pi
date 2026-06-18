@@ -64,19 +64,12 @@ describe("Modes implementation", () => {
 			const projectModesDir = path.join(tempDir, ".omp");
 			fs.mkdirSync(projectModesDir, { recursive: true });
 
-			const testGlobalModes = {
-				fast: { model: "gemini-flash", provider: "google" },
-				high: { model: "claude-sonnet", provider: "anthropic", thinkingLevel: "high" },
-			};
-			const testProjectModes = {
-				fast: { model: "gpt-4o-mini", provider: "openai" }, // Overrides global fast
-				custom: { model: "custom-model", provider: "custom-provider" },
-			};
-
 			const originalGlobalExists = fs.existsSync(globalModesFile);
 			const originalGlobalContent = originalGlobalExists ? fs.readFileSync(globalModesFile, "utf8") : "";
 
-			fs.writeFileSync(globalModesFile, `
+			fs.writeFileSync(
+				globalModesFile,
+				`
 fast:
   model: gemini-flash
   provider: google
@@ -84,15 +77,19 @@ high:
   model: claude-sonnet
   provider: anthropic
   thinkingLevel: high
-`);
-			fs.writeFileSync(path.join(projectModesDir, "modes.yml"), `
+`,
+			);
+			fs.writeFileSync(
+				path.join(projectModesDir, "modes.yml"),
+				`
 fast:
   model: gpt-4o-mini
   provider: openai
 custom:
   model: custom-model
   provider: custom-provider
-`);
+`,
+			);
 
 			try {
 				const modes = loadModes(tempDir);

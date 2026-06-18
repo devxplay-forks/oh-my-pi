@@ -461,6 +461,25 @@ export class EventController {
 	 * sure the live buffer's trailing partial gets flushed.
 	 */
 	#handleTurnEnd(event: Extract<AgentSessionEvent, { type: "turn_end" }>): void {
+		if (settings.get("terminal.showTurnIndicators")) {
+			const turnNum = this.ctx.session.turnIndex || 1;
+			const toolCallsCount = event.toolResults.length;
+			const totalTurns = this.ctx.sessionManager
+				.getBranch()
+				.filter(e => e.type === "message" && e.message.role === "assistant").length;
+
+			if (toolCallsCount > 0) {
+				this.ctx.showStatus(
+					`✓ Turn ${turnNum} (Session Turn ${totalTurns}) completed (${toolCallsCount} tool call${toolCallsCount > 1 ? "s" : ""} executed) • Sending results to model...`,
+				);
+			} else {
+				this.ctx.showStatus(`✓ Turn ${turnNum} (Session Turn ${totalTurns}) completed • Waiting for user...`);
+				// Decouple status references so it is treated as a fixed historical element
+				this.ctx.lastStatusSpacer = undefined;
+				this.ctx.lastStatusText = undefined;
+			}
+		}
+
 		if (!settings.get("speech.enabled")) return;
 		if (settings.get("speech.mode") !== "yield") {
 			vocalizer.flush();
@@ -471,7 +490,6 @@ export class EventController {
 		const text = extractTextContent(event.message);
 		if (text) vocalizer.speak(text);
 	}
-
 	async #handleMessageUpdate(event: Extract<AgentSessionEvent, { type: "message_update" }>): Promise<void> {
 		this.#vocalizeDelta(event);
 		if (this.ctx.streamingComponent && event.message.role === "assistant") {

@@ -3399,7 +3399,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	renderSessionContext(
 		sessionContext: SessionContext,
-		options?: { updateFooter?: boolean; populateHistory?: boolean },
+		options?: { updateFooter?: boolean; populateHistory?: boolean; statusBaselineOverride?: string },
 	): void {
 		this.#uiHelpers.renderSessionContext(sessionContext, options);
 	}

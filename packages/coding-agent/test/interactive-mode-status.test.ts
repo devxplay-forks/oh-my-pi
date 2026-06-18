@@ -1,9 +1,11 @@
 import { beforeAll, describe, expect, test, vi } from "bun:test";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { Message } from "@oh-my-pi/pi-ai";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { UiHelpers } from "@oh-my-pi/pi-coding-agent/modes/utils/ui-helpers";
 import { buildSessionContext, type SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
+import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { type Component, Container } from "@oh-my-pi/pi-tui";
 
 function renderLastLine(container: Container, width = 120): string {
@@ -40,6 +42,7 @@ function createInitialRenderHarness(): { ctx: InteractiveModeContext; helpers: U
 			context: SessionContext,
 			options?: { updateFooter?: boolean; populateHistory?: boolean },
 		) => helpers.renderSessionContext(context, options),
+		getUserMessageText: (_message: Message) => "hello",
 		addMessageToChat: (message: AgentMessage) => helpers.addMessageToChat(message),
 		settings: { get: () => false },
 		session: {
@@ -49,6 +52,7 @@ function createInitialRenderHarness(): { ctx: InteractiveModeContext; helpers: U
 			sessionManager: {
 				buildSessionContext: () => buildSessionContext([]),
 				getEntries: () => [],
+				putBlobSync: vi.fn(),
 			},
 		},
 		get viewSession() {
@@ -144,5 +148,29 @@ describe("InteractiveMode.showStatus", () => {
 		// handler owns this lifecycle and uses it to guard against clearing the
 		// user's in-progress editor draft during an optimistic send (#783).
 		expect(ctx.optimisticUserMessageSignature).toBe("hello\u00001");
+	});
+	test("renders completed turn completed indicators inline if enabled", () => {
+		const { ctx, helpers } = createInitialRenderHarness();
+		ctx.settings.get = ((path: string) => path === "terminal.showTurnIndicators") as any;
+		const sessionWithSettings = ctx.session as unknown as { settings: typeof ctx.settings };
+		sessionWithSettings.settings = ctx.settings;
+
+		const entries = [
+			{
+				id: "1",
+				type: "message",
+				parentId: null,
+				message: { role: "user", content: [{ type: "text", text: "prompt" }] },
+			},
+			{
+				id: "2",
+				parentId: "1",
+				type: "message",
+				message: { role: "assistant", content: [{ type: "text", text: "response" }] },
+			},
+		] as unknown as SessionEntry[];
+
+		helpers.renderSessionContext(buildSessionContext(entries));
+		expect(renderContainer(ctx.chatContainer)).toContain("✓ Turn 1 (Session Turn 1) completed • Waiting for user...");
 	});
 });
