@@ -1,3 +1,4 @@
+import type { AutocompleteItem } from "@oh-my-pi/pi-tui";
 import type { Settings } from "../config/settings";
 import type { InteractiveModeContext } from "../modes/types";
 import type { AgentSession } from "../session/agent-session";
@@ -20,6 +21,7 @@ export interface BuiltinSlashCommand {
 	subcommands?: SubcommandDef[];
 	/** Static inline hint when command takes a simple argument (no subcommands). */
 	inlineHint?: string;
+	getArgumentCompletions?: (prefix: string) => AutocompleteItem[] | null;
 }
 
 /** Parsed slash-command text after stripping the leading "/". */
@@ -129,6 +131,7 @@ export interface SlashCommandSpec extends BuiltinSlashCommand {
 				runtime: TuiSlashCommandRuntime,
 		  ) => SlashCommandResult | Promise<SlashCommandResult>)
 		| ((command: ParsedSlashCommand, runtime: TuiSlashCommandRuntime) => void | Promise<void>);
+	getArgumentCompletions?: (prefix: string) => AutocompleteItem[] | null;
 }
 
 /** Result returned by `executeAcpBuiltinSlashCommand`. */

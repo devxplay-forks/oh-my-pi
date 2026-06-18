@@ -2201,6 +2201,12 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			// Owned/in-band tool dialects (non-native) require the catalog as `# Tool:`
 			// sections; native tool calling lets the compact name list suffice.
 			const nativeTools = resolveDialect(settings.get("tools.format"), agent?.state.model ?? model) === undefined;
+			// Append mode-specific instructions to default append prompt if set on session
+			const modeInstructions = session?.getModeInstructions();
+			let finalAppendPrompt = appendPrompt;
+			if (modeInstructions) {
+				finalAppendPrompt = finalAppendPrompt ? `${finalAppendPrompt}\n\n${modeInstructions}` : modeInstructions;
+			}
 			const defaultPrompt = await buildSystemPromptInternal({
 				cwd,
 				skills,
@@ -2210,7 +2216,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				rules: rulebookRules,
 				alwaysApplyRules,
 				skillsSettings: settings.getGroup("skills"),
-				appendSystemPrompt: appendPrompt,
+				appendSystemPrompt: finalAppendPrompt,
 				inlineToolDescriptors,
 				nativeTools,
 				intentField,
@@ -2416,6 +2422,18 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		// Final convertToLlm: chain block-images filter with secret obfuscation
 		const convertToLlmFinal = (messages: AgentMessage[]): Message[] => {
 			const converted = convertToLlmWithBlockImages(messages);
+			const modeReminder = session?.getModeReminder();
+			if (modeReminder && converted.length > 0) {
+				const lastMsg = converted[converted.length - 1];
+				if (lastMsg && (lastMsg.role === "user" || lastMsg.role === "toolResult")) {
+					const content = lastMsg.content;
+					if (typeof content === "string") {
+						lastMsg.content = `${content}\n\n${modeReminder}`;
+					} else if (Array.isArray(content)) {
+						content.push({ type: "text", text: modeReminder });
+					}
+				}
+			}
 			if (!obfuscator?.hasSecrets()) return converted;
 			return obfuscateMessages(obfuscator, converted);
 		};
@@ -2535,7 +2553,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				}
 				return result;
 			},
-			intentTracing: !!intentField,
+			intentTracing: session ? (session.getModeIntentTracing() ?? !!intentField) : !!intentField,
 			pruneToolDescriptions: inlineToolDescriptors,
 			dialect: resolveDialect(settings.get("tools.format"), model),
 			abortOnFabricatedToolResult: settings.get("tools.abortOnFabricatedResult"),

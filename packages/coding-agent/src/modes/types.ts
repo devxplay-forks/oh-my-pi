@@ -6,6 +6,7 @@ import type { CollabGuestLink } from "../collab/guest";
 import type { CollabHost } from "../collab/host";
 import type { KeybindingsManager } from "../config/keybindings";
 import type { Settings } from "../config/settings";
+import type { ModeConfig } from "../core/modes";
 import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
@@ -359,6 +360,9 @@ export interface InteractiveModeContext {
 	toggleThinkingBlockVisibility(): void;
 	openExternalEditor(): void;
 	registerExtensionShortcuts(): void;
+	cycleMode(): Promise<void>;
+	activateMode(name: string, mode: ModeConfig | undefined): Promise<void>;
+	restoreSessionMode(): Promise<void>;
 	handlePlanModeCommand(initialPrompt?: string): Promise<void>;
 	handleGoalModeCommand(rest?: string): Promise<void>;
 	handleGuidedGoalCommand(rest?: string): Promise<void>;

@@ -26,6 +26,7 @@ type ConfigurableEditorAction = Extract<
 	| "app.clipboard.pasteImage"
 	| "app.clipboard.pasteTextRaw"
 	| "app.clipboard.copyPrompt"
+	| "app.mode.toggle"
 >;
 
 const DEFAULT_ACTION_KEYS: Record<ConfigurableEditorAction, KeyId[]> = {
@@ -48,6 +49,7 @@ const DEFAULT_ACTION_KEYS: Record<ConfigurableEditorAction, KeyId[]> = {
 	"app.clipboard.pasteImage": ["ctrl+v"],
 	"app.clipboard.pasteTextRaw": ["ctrl+shift+v", "alt+shift+v"],
 	"app.clipboard.copyPrompt": ["alt+shift+c"],
+	"app.mode.toggle": ["alt+tab"],
 };
 
 function buildMatchKeys(keys: readonly KeyId[]): Set<string> {
@@ -251,6 +253,7 @@ export class CustomEditor extends Editor {
 	onExit?: () => void;
 	onDisplayReset?: () => void;
 	onCycleThinkingLevel?: () => void;
+	onToggleMode?: () => void;
 	onCycleModelForward?: () => void;
 	onCycleModelBackward?: () => void;
 	onSelectModel?: () => void;
@@ -542,6 +545,11 @@ export class CustomEditor extends Editor {
 				return;
 			}
 
+			// Intercept configured mode toggling
+			if (this.#matchesAction(canonical, "app.mode.toggle") && this.onToggleMode) {
+				this.onToggleMode();
+				return;
+			}
 			// Intercept configured forward model cycling
 			if (this.#matchesAction(canonical, "app.model.cycleForward") && this.onCycleModelForward) {
 				this.onCycleModelForward();
