@@ -42,6 +42,18 @@ describe("Settings.reloadForCwd", () => {
 		expect(settings.get("compaction.enabled")).toBe(false);
 	});
 
+	it("inflates / unflattens flat dotted keys from raw settings on initialization and load", () => {
+		const settings = Settings.isolated({
+			"terminal.showTurnIndicators": true,
+			"compaction.thresholdTokens": 50000,
+			"compaction.enabled": false,
+		} as any);
+
+		expect(settings.get("terminal.showTurnIndicators")).toBe(true);
+		expect(settings.get("compaction.thresholdTokens")).toBe(50000);
+		expect(settings.get("compaction.enabled")).toBe(false);
+	});
+
 	it("is a no-op when the target directory is already the active scope", async () => {
 		const projectA = path.resolve("/tmp", `reload-noop-${Snowflake.next()}`);
 		const settings = Settings.isolated({
