@@ -191,6 +191,7 @@ export class StatusLineComponent implements Component {
 	#goalModeStatus: { enabled: boolean; paused: boolean } | null = null;
 	#collabStatus: CollabStatus | null = null;
 	#focusedAgentId: string | undefined;
+	#activeModeName: string | undefined = undefined;
 
 	// Git status caching (1s TTL)
 	#cachedGitStatus: { staged: number; unstaged: number; untracked: number } | null = null;
@@ -291,6 +292,10 @@ export class StatusLineComponent implements Component {
 
 	setGoalModeStatus(status: { enabled: boolean; paused: boolean } | undefined): void {
 		this.#goalModeStatus = status ?? null;
+	}
+
+	setActiveModeName(name: string | undefined): void {
+		this.#activeModeName = name;
 	}
 
 	setCollabStatus(status: CollabStatus | null): void {
@@ -707,6 +712,7 @@ export class StatusLineComponent implements Component {
 			planMode: this.#planModeStatus,
 			loopMode: this.#loopModeStatus,
 			goalMode: this.#goalModeStatus,
+			activeModeName: this.#activeModeName,
 			collab: this.#collabStatus,
 			usageStats,
 			contextPercent,

@@ -113,6 +113,9 @@ const modelSegment: StatusLineSegment = {
 				}
 			}
 		}
+		if (ctx.activeModeName) {
+			tail += ` [${ctx.activeModeName}]`;
+		}
 
 		// `statusLineModel` is aliased to `accent` in many themes, so the badge
 		// uses `success` to stay visibly distinct from the model name color.

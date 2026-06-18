@@ -1050,6 +1050,7 @@ export class AgentSession {
 	readonly agent: Agent;
 	readonly sessionManager: SessionManager;
 	readonly settings: Settings;
+	#lastSwitchReason: "startup" | "new" | "resume" | "fork" | "reload" = "startup";
 	readonly yieldQueue: YieldQueue;
 	fileSnapshotStore?: InMemorySnapshotStore;
 	#autoApprove: boolean;
@@ -1099,6 +1100,9 @@ export class AgentSession {
 	#goalTurnCounter = 0;
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
+	#modeInstructions: string | undefined = undefined;
+	#modeReminder: string | undefined = undefined;
+	#modeIntentTracing: boolean | undefined = undefined;
 	#clientBridge: ClientBridge | undefined;
 	#allowAcpAgentInitiatedTurns = false;
 	/** Per-session memory of allow_always / reject_always decisions for gated tools. */
@@ -2079,6 +2083,10 @@ export class AgentSession {
 
 	setSessionSwitchReconciler(reconciler: (() => Promise<void>) | null): void {
 		this.#sessionSwitchReconciler = reconciler ?? undefined;
+	}
+
+	getSessionStartEventReason(): "startup" | "new" | "resume" | "fork" | "reload" {
+		return this.#lastSwitchReason;
 	}
 
 	/** Provider-scoped mutable state store for transport/session caches. */
@@ -5099,6 +5107,31 @@ export class AgentSession {
 		}
 	}
 
+	setModeInstructions(instructions: string | undefined): void {
+		this.#modeInstructions = instructions;
+		void this.refreshBaseSystemPrompt();
+	}
+
+	getModeInstructions(): string | undefined {
+		return this.#modeInstructions;
+	}
+
+	setModeReminder(reminder: string | undefined): void {
+		this.#modeReminder = reminder;
+	}
+
+	getModeReminder(): string | undefined {
+		return this.#modeReminder;
+	}
+
+	setModeIntentTracing(intentTracing: boolean | undefined): void {
+		this.#modeIntentTracing = intentTracing;
+	}
+
+	getModeIntentTracing(): boolean | undefined {
+		return this.#modeIntentTracing;
+	}
+
 	getGoalModeState(): GoalModeState | undefined {
 		return this.#goalModeState;
 	}
@@ -6483,6 +6516,7 @@ export class AgentSession {
 	 * @returns true if completed, false if cancelled by hook
 	 */
 	async newSession(options?: NewSessionOptions): Promise<boolean> {
+		this.#lastSwitchReason = "new";
 		const previousSessionFile = this.sessionFile;
 		const nextDiscoverySessionToolNames = this.#mcpDiscoveryEnabled
 			? [
@@ -6557,6 +6591,14 @@ export class AgentSession {
 			});
 		}
 
+		try {
+			await this.#sessionSwitchReconciler?.();
+		} catch (error) {
+			logger.warn("Failed to reconcile session mode after newSession", {
+				error: String(error),
+			});
+		}
+
 		return true;
 	}
 
@@ -6574,6 +6616,7 @@ export class AgentSession {
 	 * @returns true if completed, false if cancelled by hook or not persisting
 	 */
 	async fork(): Promise<boolean> {
+		this.#lastSwitchReason = "fork";
 		const previousSessionFile = this.sessionFile;
 
 		// Emit session_before_switch event with reason "fork" (can be cancelled)
@@ -6632,6 +6675,14 @@ export class AgentSession {
 			});
 		}
 
+		try {
+			await this.#sessionSwitchReconciler?.();
+		} catch (error) {
+			logger.warn("Failed to reconcile session mode after fork", {
+				error: String(error),
+			});
+		}
+
 		return true;
 	}
 
@@ -6650,7 +6701,7 @@ export class AgentSession {
 	async setModel(
 		model: Model,
 		role: string = "default",
-		options?: { selector?: string; thinkingLevel?: ThinkingLevel; persist?: boolean },
+		options?: { selector?: string; thinkingLevel?: ThinkingLevel; persist?: boolean; persistSession?: boolean },
 	): Promise<void> {
 		const previousEditMode = this.#resolveActiveEditMode();
 		if (!this.#modelRegistry.hasConfiguredAuth(model)) {
@@ -6659,7 +6710,9 @@ export class AgentSession {
 
 		this.#clearActiveRetryFallback();
 		this.#setModelWithProviderSessionReset(model);
-		this.sessionManager.appendModelChange(`${model.provider}/${model.id}`, role);
+		if (options?.persistSession !== false) {
+			this.sessionManager.appendModelChange(`${model.provider}/${model.id}`, role);
+		}
 		if (options?.persist) {
 			this.settings.setModelRole(
 				role,
@@ -6910,7 +6963,11 @@ export class AgentSession {
 	 * persisted when real user turns are classified so resumed sessions keep the
 	 * last resolved effort instead of reverting to pending auto.
 	 */
-	setThinkingLevel(level: ConfiguredThinkingLevel | undefined, persist: boolean = false): void {
+	setThinkingLevel(
+		level: ConfiguredThinkingLevel | undefined,
+		persist: boolean = false,
+		options?: { persistSession?: boolean },
+	): void {
 		if (level === AUTO_THINKING) {
 			const provisional = resolveProvisionalAutoLevel(this.model);
 			const wasAuto = this.#autoThinking;
@@ -6936,7 +6993,9 @@ export class AgentSession {
 		this.#applyThinkingLevelToAgent(effectiveLevel);
 
 		if (isChanging) {
-			this.sessionManager.appendThinkingLevelChange(effectiveLevel);
+			if (options?.persistSession !== false) {
+				this.sessionManager.appendThinkingLevelChange(effectiveLevel);
+			}
 			if (persist && effectiveLevel !== undefined && effectiveLevel !== ThinkingLevel.Off) {
 				this.settings.set("defaultThinkingLevel", effectiveLevel);
 			}
@@ -10898,7 +10957,7 @@ export class AgentSession {
 	async reload(): Promise<void> {
 		const sessionFile = this.sessionFile;
 		if (!sessionFile) return;
-		await this.switchSession(sessionFile);
+		await this.switchSession(sessionFile, "reload");
 	}
 
 	/**
@@ -10907,7 +10966,8 @@ export class AgentSession {
 	 * Listeners are preserved and will continue receiving events.
 	 * @returns true if switch completed, false if cancelled by hook
 	 */
-	async switchSession(sessionPath: string): Promise<boolean> {
+	async switchSession(sessionPath: string, reason: "resume" | "reload" = "resume"): Promise<boolean> {
+		this.#lastSwitchReason = reason;
 		const previousSessionFile = this.sessionManager.getSessionFile();
 		const switchingToDifferentSession = previousSessionFile
 			? path.resolve(previousSessionFile) !== path.resolve(sessionPath)

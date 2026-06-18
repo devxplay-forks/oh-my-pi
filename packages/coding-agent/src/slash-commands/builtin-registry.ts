@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
 import { setNextRequestDebugPath } from "@oh-my-pi/pi-ai/utils/request-debug";
-import type { AutocompleteItem } from "@oh-my-pi/pi-tui";
+import type { AutocompleteItem, SlashCommand } from "@oh-my-pi/pi-tui";
 import { APP_NAME, setProjectDir } from "@oh-my-pi/pi-utils";
 import { COLLAB_GUEST_ALLOWED_COMMANDS, CollabGuestLink } from "../collab/guest";
 import { CollabHost } from "../collab/host";
@@ -229,6 +229,55 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 				await runtime.ctx.showProviderSetup();
 			} else {
 				runtime.ctx.showWarning(`Usage: /${command.name} [providers]`);
+			}
+			runtime.ctx.editor.setText("");
+		},
+	},
+	{
+		name: "mode",
+		description: "Switch to a named mode or session mode",
+		inlineHint: "[name]",
+		allowArgs: true,
+		getArgumentCompletions: (prefix: string) => {
+			const { loadModes } = require("../core/modes");
+			const modes = loadModes(process.cwd());
+			const normalized = prefix.trim().toLowerCase();
+			const allItems = ["session", ...Object.keys(modes)].map(name => ({
+				name,
+				value: name,
+				label: name,
+				description: name === "session" ? "Default session mode" : `Switch to ${name} mode`,
+			}));
+			const filtered = allItems.filter(item => item.label.toLowerCase().includes(normalized));
+			return filtered.length > 0 ? filtered : null;
+		},
+		handleTui: async (command, runtime) => {
+			const { loadModes, getModesPath } = require("../core/modes");
+			const cwd = runtime.ctx.sessionManager.getCwd();
+			const modes = loadModes(cwd);
+			const globalPath = getModesPath();
+			const modeNames = Object.keys(modes);
+
+			if (modeNames.length === 0) {
+				runtime.ctx.showWarning(
+					`No modes defined yet. Create a modes.yml file at global: ${globalPath} or local: .omp/modes.yml`,
+				);
+				runtime.ctx.editor.setText("");
+				return;
+			}
+
+			const arg = command.args.trim();
+			if (!arg) {
+				await runtime.ctx.cycleMode();
+			} else if (arg === "session") {
+				await runtime.ctx.restoreSessionMode();
+			} else {
+				const mode = modes[arg];
+				if (mode) {
+					await runtime.ctx.activateMode(arg, mode);
+				} else {
+					runtime.ctx.showWarning(`Mode '${arg}' not found in modes.yml. Available: ${modeNames.join(", ")}`);
+				}
 			}
 			runtime.ctx.editor.setText("");
 		},
@@ -2192,33 +2241,44 @@ export const BUILTIN_SLASH_COMMAND_DEFS: ReadonlyArray<BuiltinSlashCommand> = BU
 		description: command.description,
 		subcommands: command.subcommands,
 		inlineHint: command.inlineHint,
+		getArgumentCompletions: command.getArgumentCompletions,
 	}),
 );
-
 /**
  * Materialized builtin slash commands with completion functions derived from
  * declarative subcommand/hint definitions.
  */
-export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<
-	BuiltinSlashCommand & {
-		getArgumentCompletions?: (prefix: string) => AutocompleteItem[] | null;
-		getInlineHint?: (argumentText: string) => string | null;
-	}
-> = BUILTIN_SLASH_COMMAND_DEFS.map(cmd => {
+export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<SlashCommand> = BUILTIN_SLASH_COMMAND_DEFS.map(cmd => {
 	if (cmd.subcommands) {
 		return {
-			...cmd,
+			name: cmd.name,
+			aliases: cmd.aliases,
+			description: cmd.description,
 			getArgumentCompletions: buildArgumentCompletions(cmd.subcommands),
 			getInlineHint: buildSubcommandInlineHint(cmd.subcommands),
-		};
+		} satisfies SlashCommand;
 	}
 	if (cmd.inlineHint) {
 		return {
-			...cmd,
+			name: cmd.name,
+			aliases: cmd.aliases,
+			description: cmd.description,
 			getInlineHint: buildStaticInlineHint(cmd.inlineHint),
-		};
+		} satisfies SlashCommand;
 	}
-	return cmd;
+	if (cmd.getArgumentCompletions) {
+		return {
+			name: cmd.name,
+			aliases: cmd.aliases,
+			description: cmd.description,
+			getArgumentCompletions: cmd.getArgumentCompletions,
+		} satisfies SlashCommand;
+	}
+	return {
+		name: cmd.name,
+		aliases: cmd.aliases,
+		description: cmd.description,
+	} satisfies SlashCommand;
 });
 
 /**

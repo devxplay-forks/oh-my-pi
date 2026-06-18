@@ -3520,6 +3520,16 @@ export const SETTINGS_SCHEMA = {
 	// ────────────────────────────────────────────────────────────────────────
 
 	// Plan mode
+	"mode.default": {
+		type: "string",
+		default: "",
+		ui: {
+			tab: "tasks",
+			group: "Modes",
+			label: "Default Mode",
+			description: "Default mode to enter on startup (from modes.yml)",
+		},
+	},
 	"plan.enabled": {
 		type: "boolean",
 		default: true,

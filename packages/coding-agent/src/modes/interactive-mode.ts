@@ -4,6 +4,10 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { loadModes, type ModeConfig, type SessionBaseline } from "../core/modes";
+
+const MODE_CHANGE_ENTRY_TYPE = "mode_change";
+
 import {
 	type Agent,
 	type AgentMessage,
@@ -383,6 +387,8 @@ export class InteractiveMode implements InteractiveModeContext {
 	hookWidgetContainerBelow: Container;
 	statusLine: StatusLineComponent;
 
+	activeModeName: string | undefined = undefined;
+	sessionBaseline: SessionBaseline | undefined = undefined;
 	isInitialized = false;
 	isBashMode = false;
 	toolOutputExpanded = false;
@@ -1784,6 +1790,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	/** Reconcile mode state from session entries on resume/switch. */
 	async #reconcileModeFromSession(): Promise<void> {
+		await this.restoreModeFromSession();
 		await this.#clearTransientModeState();
 		const sessionContext = this.sessionManager.buildSessionContext();
 		const goalEnabled = this.session.settings.get("goal.enabled");
@@ -3478,6 +3485,206 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	handleMemoryCommand(text: string): Promise<void> {
 		return this.#commandController.handleMemoryCommand(text);
+	}
+
+	async cycleMode(): Promise<void> {
+		const modes = loadModes(this.sessionManager.getCwd());
+		const modeNames = Object.keys(modes);
+		if (modeNames.length === 0) {
+			const { getModesPath } = require("../core/modes");
+			const globalPath = getModesPath();
+			this.showWarning(
+				`No modes defined yet. Create a modes.yml file at global: ${globalPath} or local: .omp/modes.yml`,
+			);
+			this.ui.requestRender();
+			return;
+		}
+
+		if (!this.activeModeName) {
+			// session -> first mode
+			await this.activateMode(modeNames[0], modes[modeNames[0]]);
+		} else {
+			const currentIndex = modeNames.indexOf(this.activeModeName);
+			const nextIndex = currentIndex + 1;
+			if (nextIndex < modeNames.length) {
+				// current mode -> next mode
+				await this.activateMode(modeNames[nextIndex], modes[modeNames[nextIndex]]);
+			} else {
+				// last mode -> back to session
+				await this.restoreSessionMode();
+			}
+		}
+	}
+
+	async activateMode(name: string, mode: ModeConfig | undefined): Promise<void> {
+		if (!mode) {
+			return;
+		}
+		if (!this.activeModeName) {
+			const currentThinkingLevel = this.session.thinkingLevel;
+			this.sessionBaseline = {
+				model: this.session.model,
+				thinkingLevel: currentThinkingLevel ?? ThinkingLevel.Off,
+			};
+		}
+
+		if (mode.provider && mode.model) {
+			const targetModel = this.session.modelRegistry.find(mode.provider, mode.model);
+			if (targetModel) {
+				try {
+					await this.session.setModel(targetModel, "default", { persist: false, persistSession: false });
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					this.showWarning(`Mode '${name}': ${msg}`);
+				}
+			} else {
+				this.showWarning(`Mode '${name}': model ${mode.provider}/${mode.model} not found`);
+			}
+		}
+
+		if (mode.thinkingLevel !== undefined) {
+			this.session.setThinkingLevel(mode.thinkingLevel, false, { persistSession: false });
+		}
+
+		this.session.setModeInstructions(mode.instructions);
+		this.session.setModeReminder(mode.reminder);
+		this.session.setModeIntentTracing(mode.intentTracing);
+		this.activeModeName = name;
+		this.statusLine.setActiveModeName(name);
+		this.sessionManager.appendCustomEntry(MODE_CHANGE_ENTRY_TYPE, { name });
+		this.statusLine.invalidate();
+		this.updateEditorTopBorder();
+		this.ui.requestRender();
+		this.showStatus(`Switched to ${name} mode`);
+	}
+
+	async restoreSessionMode(): Promise<void> {
+		if (this.sessionBaseline) {
+			if (this.sessionBaseline.model) {
+				try {
+					await this.session.setModel(this.sessionBaseline.model, "default", {
+						persist: false,
+						persistSession: false,
+					});
+				} catch {
+					// Baseline model may no longer be available
+				}
+			}
+			this.session.setThinkingLevel(this.sessionBaseline.thinkingLevel, false, { persistSession: false });
+		}
+
+		this.session.setModeInstructions(undefined);
+		this.session.setModeReminder(undefined);
+		this.session.setModeIntentTracing(undefined);
+		this.activeModeName = undefined;
+		this.statusLine.setActiveModeName(undefined);
+		this.sessionManager.appendCustomEntry(MODE_CHANGE_ENTRY_TYPE, { name: undefined });
+		this.statusLine.invalidate();
+		this.updateEditorTopBorder();
+		this.ui.requestRender();
+		this.showStatus("Switched to session mode");
+	}
+
+	async restoreModeFromSession(): Promise<void> {
+		this.activeModeName = undefined;
+		this.sessionBaseline = undefined;
+		this.statusLine.setActiveModeName(undefined);
+		this.session.setModeInstructions(undefined);
+		this.session.setModeReminder(undefined);
+		this.session.setModeIntentTracing(undefined);
+
+		const entries = this.sessionManager.getEntries();
+		let persistedModeName: string | undefined;
+		for (let i = entries.length - 1; i >= 0; i--) {
+			const entry = entries[i];
+			if (entry.type === "custom" && entry.customType === MODE_CHANGE_ENTRY_TYPE) {
+				const data = entry.data as { name?: string } | undefined;
+				persistedModeName = data?.name;
+				break;
+			}
+		}
+
+		if (!persistedModeName) {
+			const startReason = this.session.getSessionStartEventReason?.() ?? "resume";
+			const isBrandNewSession = startReason === "new" || startReason === "startup";
+
+			if (isBrandNewSession) {
+				const configuredDefaultModeName = this.session.settings.get("mode.default");
+				if (configuredDefaultModeName) {
+					const modes = loadModes(this.sessionManager.getCwd());
+					const mode = modes[configuredDefaultModeName];
+					if (mode) {
+						const currentThinkingLevel = this.session.thinkingLevel;
+						this.sessionBaseline = {
+							model: this.session.model,
+							thinkingLevel: currentThinkingLevel ?? ThinkingLevel.Off,
+						};
+						if (mode.provider && mode.model) {
+							const targetModel = this.session.modelRegistry.find(mode.provider, mode.model);
+							if (targetModel) {
+								try {
+									await this.session.setModel(targetModel, "default", {
+										persist: false,
+										persistSession: false,
+									});
+								} catch {}
+							}
+						}
+						if (mode.thinkingLevel !== undefined) {
+							this.session.setThinkingLevel(mode.thinkingLevel, false, { persistSession: false });
+						}
+						this.session.setModeInstructions(mode.instructions);
+						this.session.setModeReminder(mode.reminder);
+						this.session.setModeIntentTracing(mode.intentTracing);
+						this.activeModeName = configuredDefaultModeName;
+						this.statusLine.setActiveModeName(configuredDefaultModeName);
+						this.sessionManager.appendCustomEntry(MODE_CHANGE_ENTRY_TYPE, { name: configuredDefaultModeName });
+					}
+				}
+			}
+			this.statusLine.invalidate();
+			this.ui.requestRender();
+			return;
+		}
+
+		const modes = loadModes(this.sessionManager.getCwd());
+		const mode = modes[persistedModeName];
+		if (!mode) {
+			this.statusLine.invalidate();
+			this.ui.requestRender();
+			return;
+		}
+
+		const currentThinkingLevel = this.session.thinkingLevel;
+		this.sessionBaseline = {
+			model: this.session.model,
+			thinkingLevel: currentThinkingLevel ?? ThinkingLevel.Off,
+		};
+
+		if (mode.provider && mode.model) {
+			const targetModel = this.session.modelRegistry.find(mode.provider, mode.model);
+			if (targetModel) {
+				try {
+					await this.session.setModel(targetModel, "default", { persist: false, persistSession: false });
+				} catch {
+					this.statusLine.invalidate();
+					this.ui.requestRender();
+					return;
+				}
+			}
+		}
+
+		if (mode.thinkingLevel !== undefined) {
+			this.session.setThinkingLevel(mode.thinkingLevel, false, { persistSession: false });
+		}
+
+		this.session.setModeInstructions(mode.instructions);
+		this.session.setModeReminder(mode.reminder);
+		this.session.setModeIntentTracing(mode.intentTracing);
+		this.activeModeName = persistedModeName;
+		this.statusLine.setActiveModeName(persistedModeName);
+		this.statusLine.invalidate();
+		this.ui.requestRender();
 	}
 
 	async handleSTTToggle(): Promise<void> {
