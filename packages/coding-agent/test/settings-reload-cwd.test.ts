@@ -11,6 +11,8 @@ import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } f
 import { cfgCompactionEnabled } from "@oh-my-pi/pi-coding-agent/session/context-settings";
 import { cfgEnabledModels, cfgModelRoleStorage } from "@oh-my-pi/pi-coding-agent/config/model-settings";
 
+import { cfgTerminalShowTurnIndicators } from "@oh-my-pi/pi-coding-agent/modes/settings";
+import { cfgCompactionThresholdTokens } from "@oh-my-pi/pi-coding-agent/session/context-settings";
 it("applies project role mutations over active runtime overrides", () => {
 	const settings = Settings.isolated({});
 	settings.overrideModelRoles({ smol: "anthropic/runtime" });
@@ -128,6 +130,18 @@ describe("Settings.reloadForCwd", () => {
 		expect(settings.getCwd()).toBe(path.normalize(projectB));
 		expect(cfgEnabledModels.get(settings)).toEqual(["model-b"]);
 		// Non-scoped override is preserved across the switch.
+		expect(cfgCompactionEnabled.get(settings)).toBe(false);
+	});
+
+	it("inflates / unflattens flat dotted keys from raw settings on initialization and load", () => {
+		const settings = Settings.isolated({
+			"terminal.showTurnIndicators": true,
+			"compaction.thresholdTokens": 50000,
+			"compaction.enabled": false,
+		} as any);
+
+		expect(cfgTerminalShowTurnIndicators.get(settings)).toBe(true);
+		expect(cfgCompactionThresholdTokens.get(settings)).toBe(50000);
 		expect(cfgCompactionEnabled.get(settings)).toBe(false);
 	});
 

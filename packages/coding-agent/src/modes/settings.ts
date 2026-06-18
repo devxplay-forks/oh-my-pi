@@ -320,6 +320,18 @@ export const cfgTerminalShowImages = register({
 	},
 });
 
+export const cfgTerminalShowTurnIndicators = register({
+	id: "terminal.showTurnIndicators",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "appearance",
+		group: "Display",
+		label: "Show Turn Indicators",
+		description: "Show Turn and Session Turn completed indicators in chat",
+	},
+});
+
 export const cfgImagesAutoResize = register({
 	id: "images.autoResize",
 	type: "boolean",

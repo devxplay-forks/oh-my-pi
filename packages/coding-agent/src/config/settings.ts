@@ -366,6 +366,47 @@ export function dropSettingsGroupShadows(data: RawSettings, sourcePath: string, 
 	return result;
 }
 
+/**
+ * Recursively unflat flat dotted keys in a RawSettings object into nested structures.
+ * Also merges overlapping dotted and nested objects cleanly.
+ */
+export function unflattenRawSettings(raw: RawSettings): RawSettings {
+	const result: RawSettings = {};
+
+	function mergeInto(target: RawSettings, source: RawSettings): void {
+		for (const key of Object.keys(source)) {
+			const val = source[key];
+			if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+				if (!(key in target) || typeof target[key] !== "object" || target[key] === null) {
+					target[key] = {};
+				}
+				mergeInto(target[key] as RawSettings, val as RawSettings);
+			} else {
+				target[key] = val;
+			}
+		}
+	}
+
+	for (const key of Object.keys(raw)) {
+		const value = raw[key];
+		if (key.includes(".")) {
+			const segments = key.split(".");
+			const temp: RawSettings = {};
+			setByPath(temp, segments, value);
+			mergeInto(result, temp);
+		} else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+			const nestedUnflattened = unflattenRawSettings(value as RawSettings);
+			if (!(key in result) || typeof result[key] !== "object" || result[key] === null) {
+				result[key] = {};
+			}
+			mergeInto(result[key] as RawSettings, nestedUnflattened);
+		} else {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
 function expandTilde(p: string): string {
 	return p === "~" ? os.homedir() : p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;
 }
@@ -2599,6 +2640,9 @@ export class Settings {
 
 	/** Apply schema migrations to raw settings */
 	#migrateRawSettings(raw: RawSettings, captureLegacyChangelogVersion = true): RawSettings {
+		// Dotted keys inflation: unflatten flat dotted keys into nested structures
+		raw = unflattenRawSettings(raw);
+
 		// queueMode -> steeringMode
 		if ("queueMode" in raw && !("steeringMode" in raw)) {
 			raw.steeringMode = raw.queueMode;

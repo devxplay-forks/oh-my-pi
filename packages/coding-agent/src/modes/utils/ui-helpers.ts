@@ -104,6 +104,7 @@ import {
 	cfgDisplayShowTokenUsage,
 	cfgDisplayShowTurnTime,
 	cfgTerminalShowImages,
+	cfgTerminalShowTurnIndicators,
 } from "../settings";
 import { cfgReadToolResultPreview } from "../../tools/settings";
 
@@ -460,7 +461,7 @@ export class UiHelpers {
 	/** Build a session context in bounded chunks so terminal input runs between event-loop turns. */
 	async renderSessionContextIncrementally(
 		sessionContext: SessionContext,
-		options: RenderSessionContextOptions,
+		options: RenderSessionContextOptions = {},
 		renderChunk?: () => void,
 	): Promise<void> {
 		const steps = this.#renderSessionContextSteps(sessionContext, options);
@@ -590,6 +591,8 @@ export class UiHelpers {
 		// (not finalized) so replayed and live frames still route to the card;
 		// the ids are handed back to the controller after the loop (#10447).
 		const backgroundCallIds = new Set<string>();
+		let turnCounter = 0;
+		let sessionTurnCounter = 0;
 		const messages = sessionContext.messages;
 		const count = messages.length;
 		for (let i = 0; i < count; i++) {
@@ -602,6 +605,9 @@ export class UiHelpers {
 			// the next iteration is reached no matter how the prior message exited.
 			if (i > 0) yield;
 			const message = messages[i]!;
+			if (message.role === "user") {
+				turnCounter = 0;
+			}
 			if (message.role !== "toolResult") flushPendingUsage();
 			// Assistant messages need special handling for tool calls
 			if (message.role === "assistant") {
@@ -761,6 +767,27 @@ export class UiHelpers {
 				pendingUsageTurnElapsed = cfgDisplayShowTurnTime.get(this.ctx.settings)
 					? turnElapsedMs(turnStartedAt, message)
 					: undefined;
+				// Append historical turn indicators inline
+				if (cfgTerminalShowTurnIndicators.get(this.ctx.settings)) {
+					turnCounter++;
+					sessionTurnCounter++;
+					const toolCallsCount = message.content.filter(c => c.type === "toolCall").length;
+					if (toolCallsCount > 0) {
+						this.showStatus(
+							`✓ Turn ${turnCounter} (Session Turn ${sessionTurnCounter}) completed (${toolCallsCount} tool call${toolCallsCount > 1 ? "s" : ""} executed) • Sending results to model...`,
+						);
+					} else {
+						const baselineText = options.statusBaselineOverride || "Waiting for user...";
+						this.showStatus(
+							`✓ Turn ${turnCounter} (Session Turn ${sessionTurnCounter}) completed • ${baselineText}`,
+						);
+					}
+					// Decouple status references so it is treated as a fixed historical element
+					this.ctx.lastStatus = undefined;
+				} else if (options.statusBaselineOverride) {
+					// Fall back to original standard behavior when turn indicators are disabled
+					this.showStatus(options.statusBaselineOverride);
+				}
 			} else if (message.role === "toolResult") {
 				if (options.preservedLiveToolCallIds?.has(message.toolCallId)) continue;
 				const pendingReadComponent = this.ctx.pendingTools.get(message.toolCallId);

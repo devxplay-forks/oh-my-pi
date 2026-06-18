@@ -79,6 +79,7 @@ import {
 	cfgRecap,
 	cfgTerminalShowImages,
 	cfgTerminalShowProgress,
+	cfgTerminalShowTurnIndicators,
 } from "../settings";
 import { cfgCompaction } from "../../session/context-settings";
 import { cfgReadToolResultPreview, cfgToolsApproval, cfgToolsApprovalMode } from "../../tools/settings";
@@ -1471,6 +1472,24 @@ export class EventController {
 	 * sure the live buffer's trailing partial gets flushed.
 	 */
 	#handleTurnEnd(event: Extract<AgentSessionEvent, { type: "turn_end" }>): void {
+		if (cfgTerminalShowTurnIndicators.get(settings)) {
+			const turnNum = this.ctx.session.turnIndex || 1;
+			const toolCallsCount = event.toolResults.length;
+			const totalTurns = this.ctx.sessionManager
+				.getBranch()
+				.filter(e => e.type === "message" && e.message.role === "assistant").length;
+
+			if (toolCallsCount > 0) {
+				this.ctx.showStatus(
+					`✓ Turn ${turnNum} (Session Turn ${totalTurns}) completed (${toolCallsCount} tool call${toolCallsCount > 1 ? "s" : ""} executed) • Sending results to model...`,
+				);
+			} else {
+				this.ctx.showStatus(`✓ Turn ${turnNum} (Session Turn ${totalTurns}) completed • Waiting for user...`);
+				// Decouple status references so it is treated as a fixed historical element
+				this.ctx.lastStatus = undefined;
+			}
+		}
+
 		if (!cfgSpeechEnabled.get(settings)) return;
 		if (cfgSpeechMode.get(settings) !== "yield") {
 			vocalizer.flush();
@@ -1481,7 +1500,6 @@ export class EventController {
 		const text = extractTextContent(event.message);
 		if (text) vocalizer.speak(text);
 	}
-
 	async #handleMessageUpdate(event: Extract<AgentSessionEvent, { type: "message_update" }>): Promise<void> {
 		this.#ensureWorkingLoaderWhileStreaming();
 		if (!this.#vocalizedMessageUpdates.delete(event)) {
