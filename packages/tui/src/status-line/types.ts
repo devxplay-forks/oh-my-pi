@@ -93,6 +93,7 @@ export interface SegmentContext {
 	compactThinkingLevel: boolean;
 	/** Key-sorted extension/hook status values. Segment renderers sanitize before display. */
 	hookStatuses?: readonly string[];
+	activeModeName?: string | undefined;
 	planMode: {
 		enabled: boolean;
 		paused: boolean;

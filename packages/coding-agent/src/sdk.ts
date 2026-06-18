@@ -4033,6 +4033,12 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					? { mode: "compact", toolNames: [...toolNames, ...mountedPromptToolNames] }
 					: { mode: "full" },
 			);
+			// Append mode-specific instructions to default append prompt if set on session
+			const modeInstructions = session?.getModeInstructions();
+			let finalAppendPrompt = appendPrompt;
+			if (modeInstructions) {
+				finalAppendPrompt = finalAppendPrompt ? `${finalAppendPrompt}\n\n${modeInstructions}` : modeInstructions;
+			}
 			const defaultPrompt = await buildSystemPromptInternal({
 				cwd: promptCwd,
 				additionalWorkspaceRoots: sessionManager.getAdditionalDirectories(),
@@ -4047,7 +4053,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				toolNames,
 				rules: rulebookRules,
 				alwaysApplyRules,
-				resolvedAppendSystemPrompt: appendPrompt,
+				resolvedAppendSystemPrompt: finalAppendPrompt,
 				skillsSettings: cfgSkills.get(settings),
 				inlineToolDescriptors,
 				nativeTools,
@@ -4275,6 +4281,18 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		// then applies secret obfuscation to the remaining outbound context.
 		const convertToLlmFinal = (messages: AgentMessage[]): Message[] => {
 			const converted = filterProviderReplayMessages(convertToLlmWithBlockImages(messages));
+			const modeReminder = session?.getModeReminder();
+			if (modeReminder && converted.length > 0) {
+				const lastMsg = converted[converted.length - 1];
+				if (lastMsg && (lastMsg.role === "user" || lastMsg.role === "toolResult")) {
+					const content = lastMsg.content;
+					if (typeof content === "string") {
+						lastMsg.content = `${content}\n\n${modeReminder}`;
+					} else if (Array.isArray(content)) {
+						content.push({ type: "text", text: modeReminder });
+					}
+				}
+			}
 			if (!obfuscator?.hasSecrets()) return converted;
 			return obfuscateMessages(obfuscator, converted);
 		};
@@ -4537,7 +4555,9 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			transformAssistantMessagePreservesToolCalls: true,
 			resolveFallbackTool: resolveDeviceTool,
 			suggestFallbackToolNames: suggestDeviceToolNames,
-			intentTracing: cfgToolsIntentTracing.get(settings),
+			intentTracing: session
+				? (session.getModeIntentTracing() ?? cfgToolsIntentTracing.get(settings))
+				: cfgToolsIntentTracing.get(settings),
 			pruneToolDescriptions: resolveInlineToolDescriptors(),
 			// Per request against the model actually requested, so `tools.format`
 			// changes and model switches reach the next provider call.

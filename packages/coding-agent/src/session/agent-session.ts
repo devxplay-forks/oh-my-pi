@@ -836,6 +836,7 @@ export class AgentSession implements SettingsScope {
 	readonly agent: Agent;
 	readonly sessionManager: SessionManager;
 	readonly settings: Settings;
+	#lastSwitchReason: "startup" | "new" | "resume" | "fork" | "reload" = "startup";
 	/** Session-start policy, independent of the selected project memory backend. */
 	readonly memoryEnabled: boolean;
 	/** Entries of tools mounted under `xd://`; empty when virtual devices are unmounted. */
@@ -945,6 +946,9 @@ export class AgentSession implements SettingsScope {
 	#goalTurnCounter = 0;
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
+	#modeInstructions: string | undefined = undefined;
+	#modeReminder: string | undefined = undefined;
+	#modeIntentTracing: boolean | undefined = undefined;
 	#clientBridge: ClientBridge | undefined;
 	#allowAcpAgentInitiatedTurns = false;
 	/** Session file created by this session's `/move`; removed on dispose if it stayed empty. */
@@ -2919,6 +2923,10 @@ export class AgentSession implements SettingsScope {
 
 	setSessionSwitchReconciler(reconciler: (() => Promise<void>) | null): void {
 		this.#sessionSwitchReconciler = reconciler ?? undefined;
+	}
+
+	getSessionStartEventReason(): "startup" | "new" | "resume" | "fork" | "reload" {
+		return this.#lastSwitchReason;
 	}
 
 	/**
@@ -7015,6 +7023,31 @@ export class AgentSession implements SettingsScope {
 		}
 	}
 
+	setModeInstructions(instructions: string | undefined): void {
+		this.#modeInstructions = instructions;
+		void this.refreshBaseSystemPrompt();
+	}
+
+	getModeInstructions(): string | undefined {
+		return this.#modeInstructions;
+	}
+
+	setModeReminder(reminder: string | undefined): void {
+		this.#modeReminder = reminder;
+	}
+
+	getModeReminder(): string | undefined {
+		return this.#modeReminder;
+	}
+
+	setModeIntentTracing(intentTracing: boolean | undefined): void {
+		this.#modeIntentTracing = intentTracing;
+	}
+
+	getModeIntentTracing(): boolean | undefined {
+		return this.#modeIntentTracing;
+	}
+
 	getGoalModeState(): GoalModeState | undefined {
 		return this.#goalModeState;
 	}
@@ -10143,6 +10176,7 @@ export class AgentSession implements SettingsScope {
 	async newSession(options?: NewSessionOptions): Promise<boolean> {
 		using _transition = this.#beginSessionTransition();
 		this.#assertVibeSessionTransitionAllowed("start a new session");
+		this.#lastSwitchReason = "new";
 		const previousSessionFile = this.sessionFile;
 
 		// Emit session_before_switch event with reason "new" (can be cancelled)
@@ -10296,6 +10330,7 @@ export class AgentSession implements SettingsScope {
 	async fork(entryId?: string, options?: { requireIdle?: boolean }): Promise<boolean> {
 		using _transition = this.#beginSessionTransition();
 		this.#assertVibeSessionTransitionAllowed("fork the session");
+		this.#lastSwitchReason = "fork";
 		const requireIdleFor = entryId !== undefined || options?.requireIdle ? "fork the session" : undefined;
 		if (entryId !== undefined) {
 			if (this.sessionManager.getEntry(entryId)?.type !== "message") {
@@ -10454,6 +10489,8 @@ export class AgentSession implements SettingsScope {
 			selector?: string;
 			thinkingLevel?: ThinkingLevel;
 			persist?: boolean;
+			currentContextTokens?: number;
+			persistSession?: boolean;
 		},
 	): Promise<{ switched: boolean }> {
 		return this.#models.setModel(model, role, options);
@@ -11724,7 +11761,7 @@ export class AgentSession implements SettingsScope {
 	async reload(): Promise<void> {
 		const sessionFile = this.sessionFile;
 		if (!sessionFile) return;
-		const switched = await this.switchSession(sessionFile);
+		const switched = await this.switchSession(sessionFile, undefined, "reload");
 		if (!switched) throw new Error("Session reload cancelled");
 	}
 	/**
@@ -11760,7 +11797,9 @@ export class AgentSession implements SettingsScope {
 			 */
 			onModelFallback?: (warning: string) => void;
 		},
+		reason: "resume" | "reload" = "resume",
 	): Promise<boolean> {
+		this.#lastSwitchReason = reason;
 		const explicitModel = options?.model;
 		if (explicitModel && !this.#modelRegistry.hasConfiguredAuth(explicitModel)) {
 			throw new Error(`No API key for ${explicitModel.provider}/${explicitModel.id}`);

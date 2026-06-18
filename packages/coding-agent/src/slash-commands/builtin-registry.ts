@@ -47,6 +47,55 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 	...BUILTIN_MARKETPLACE_SLASH_COMMANDS,
 	...BUILTIN_SKILLS_SLASH_COMMANDS,
 	...BUILTIN_CONTROL_SLASH_COMMANDS,
+	{
+		name: "mode",
+		description: "Switch to a named mode or session mode",
+		inlineHint: "[name]",
+		allowArgs: true,
+		getArgumentCompletions: (prefix: string) => {
+			const { loadModes } = require("../core/modes");
+			const modes = loadModes(process.cwd());
+			const normalized = prefix.trim().toLowerCase();
+			const allItems = ["session", ...Object.keys(modes)].map(name => ({
+				name,
+				value: name,
+				label: name,
+				description: name === "session" ? "Default session mode" : `Switch to ${name} mode`,
+			}));
+			const filtered = allItems.filter(item => item.label.toLowerCase().includes(normalized));
+			return filtered.length > 0 ? filtered : null;
+		},
+		handleTui: async (command, runtime) => {
+			const { loadModes, getModesPath } = require("../core/modes");
+			const cwd = runtime.ctx.sessionManager.getCwd();
+			const modes = loadModes(cwd);
+			const globalPath = getModesPath();
+			const modeNames = Object.keys(modes);
+
+			if (modeNames.length === 0) {
+				runtime.ctx.showWarning(
+					`No modes defined yet. Create a modes.yml file at global: ${globalPath} or local: .omp/modes.yml`,
+				);
+				runtime.ctx.editor.setText("");
+				return;
+			}
+
+			const arg = command.args.trim();
+			if (!arg) {
+				await runtime.ctx.cycleMode();
+			} else if (arg === "session") {
+				await runtime.ctx.restoreSessionMode();
+			} else {
+				const mode = modes[arg];
+				if (mode) {
+					await runtime.ctx.activateMode(arg, mode);
+				} else {
+					runtime.ctx.showWarning(`Mode '${arg}' not found in modes.yml. Available: ${modeNames.join(", ")}`);
+				}
+			}
+			runtime.ctx.editor.setText("");
+		},
+	},
 ];
 
 const BUILTIN_SLASH_COMMAND_LOOKUP = new Map<string, SlashCommandSpec>();
@@ -74,6 +123,7 @@ export const BUILTIN_SLASH_COMMAND_DEFS: ReadonlyArray<BuiltinSlashCommand> = BU
 		subcommandOptional: command.subcommandOptional,
 		inlineHint: command.inlineHint,
 		getTuiAutocompleteDescription: command.getTuiAutocompleteDescription,
+		getArgumentCompletions: command.getArgumentCompletions,
 	}),
 );
 
@@ -105,13 +155,14 @@ function materializeTuiBuiltinSlashCommand(
 		if (cmd.inlineHint) materialized.getInlineHint = buildStaticInlineHint(cmd.inlineHint);
 	} else if (cmd.inlineHint) {
 		materialized.getInlineHint = buildStaticInlineHint(cmd.inlineHint);
+	} else if (cmd.getArgumentCompletions) {
+		materialized.getArgumentCompletions = cmd.getArgumentCompletions;
 	}
 	if (runtime && cmd.getTuiAutocompleteDescription) {
 		materialized.getAutocompleteDescription = () => cmd.getTuiAutocompleteDescription?.(runtime);
 	}
 	return materialized;
 }
-
 /**
  * Materialized builtin slash commands with completion functions derived from
  * declarative subcommand/hint definitions.

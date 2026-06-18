@@ -371,6 +371,9 @@ const modelSegment: StatusLineSegment = {
 		if (!compact && thinkingDisplay) {
 			tail += `${theme.sep.dot}${thinkingDisplay}`;
 		}
+		if (ctx.activeModeName) {
+			tail += ` [${ctx.activeModeName}]`;
+		}
 
 		// `statusLineModel` is aliased to `accent` in many themes, so the badge
 		// uses status colors to stay visibly distinct from the model name color.

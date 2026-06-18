@@ -731,6 +731,7 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 	#planModeStatus: { enabled: boolean; paused: boolean } | null = null;
 	#loopModeStatus: SegmentContext["loopMode"] = null;
 	#goalModeStatus: { enabled: boolean; paused: boolean } | null = null;
+	#activeModeName: string | undefined = undefined;
 	#vibeModeStatus: { enabled: boolean } | null = null;
 	#vimStatus: SegmentContext["vim"] = null;
 	/**
@@ -1149,6 +1150,11 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 		const next = status ?? null;
 		if (this.#vibeModeStatus === next || this.#vibeModeStatus?.enabled === next?.enabled) return;
 		this.#vibeModeStatus = next;
+	}
+
+	setActiveModeName(name: string | undefined): void {
+		if (this.#activeModeName === name) return;
+		this.#activeModeName = name;
 		this.#invalidateStatusLineRenderCache();
 	}
 
@@ -2552,6 +2558,7 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 					: null,
 			goalMode: this.#goalModeStatus,
 			goalStatusInFooter: this.#goalModeStatus ? this.host.goalStatusInFooter(this.session) : false,
+			activeModeName: this.#activeModeName,
 			vibeMode: this.#vibeModeStatus,
 			vim: this.#vimStatus,
 			collab: this.#collabStatus,

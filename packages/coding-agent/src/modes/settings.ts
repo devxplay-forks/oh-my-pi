@@ -39,6 +39,18 @@ export const cfgAutoResume = register({
 	},
 });
 
+export const cfgModeDefault = register({
+	id: "mode.default",
+	type: "string",
+	default: "",
+	ui: {
+		tab: "tasks",
+		group: "Modes",
+		label: "Default Mode",
+		description: "Default mode to enter on startup (from modes.yml)",
+	},
+});
+
 export const cfgGitEnabled = register({
 	id: "git.enabled",
 	type: "boolean",
