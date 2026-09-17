@@ -61,7 +61,7 @@ interface AppKeybindings {
 	"app.tree.previousBranch": true;
 	"app.tree.nextBranch": true;
 	"app.plan.toggle": true;
-	"app.mode.toggle": true;
+	"app.role.toggle": true;
 	"app.history.search": true;
 	"app.stt.pushToTalk": true;
 	"app.stt.toggle": true;
@@ -117,9 +117,9 @@ export const KEYBINDINGS = {
 		defaultKeys: "ctrl+t",
 		description: "Toggle thinking mode",
 	},
-	"app.mode.toggle": {
+	"app.role.toggle": {
 		defaultKeys: "alt+tab",
-		description: "Cycle mode",
+		description: "Cycle role",
 	},
 	"app.model.cycleForward": {
 		defaultKeys: "ctrl+p",

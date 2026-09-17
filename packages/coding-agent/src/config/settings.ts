@@ -3047,11 +3047,6 @@ export class Settings {
 			// rewrote the cached prompt prefix mid-session (#11961).
 			delete hindsightObj.mentalModelRefreshIntervalMs;
 		}
-		// defaultMode -> mode.default
-		if ("defaultMode" in raw && !("mode.default" in raw)) {
-			raw["mode.default"] = raw.defaultMode;
-			delete raw.defaultMode;
-		}
 
 		// power.preventIdleSleep / power.preventSystemSleep / power.declareUserActive
 		// / power.preventDisplaySleep (four booleans) → power.sleepPrevention enum.

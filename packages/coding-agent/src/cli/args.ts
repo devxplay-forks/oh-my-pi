@@ -31,6 +31,7 @@ export interface Args {
 	allowHome?: boolean;
 	provider?: string;
 	model?: string;
+	role?: string;
 	config?: string[];
 	smol?: string;
 	slow?: string;

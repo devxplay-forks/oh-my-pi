@@ -48,33 +48,33 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 	...BUILTIN_SKILLS_SLASH_COMMANDS,
 	...BUILTIN_CONTROL_SLASH_COMMANDS,
 	{
-		name: "mode",
-		description: "Switch to a named mode or session mode",
+		name: "role",
+		description: "Switch to a named role or session role",
 		inlineHint: "[name]",
 		allowArgs: true,
 		getArgumentCompletions: (prefix: string) => {
-			const { loadModes } = require("../core/modes");
-			const modes = loadModes(process.cwd());
+			const { loadRoles } = require("../core/roles");
+			const roles = loadRoles(process.cwd());
 			const normalized = prefix.trim().toLowerCase();
-			const allItems = ["session", ...Object.keys(modes)].map(name => ({
+			const allItems = ["session", ...Object.keys(roles)].map(name => ({
 				name,
 				value: name,
 				label: name,
-				description: name === "session" ? "Default session mode" : `Switch to ${name} mode`,
+				description: name === "session" ? "Default session role" : `Switch to ${name} role`,
 			}));
 			const filtered = allItems.filter(item => item.label.toLowerCase().includes(normalized));
 			return filtered.length > 0 ? filtered : null;
 		},
 		handleTui: async (command, runtime) => {
-			const { loadModes, getModesPath } = require("../core/modes");
+			const { loadRoles, getRolesPath } = require("../core/roles");
 			const cwd = runtime.ctx.sessionManager.getCwd();
-			const modes = loadModes(cwd);
-			const globalPath = getModesPath();
-			const modeNames = Object.keys(modes);
+			const roles = loadRoles(cwd);
+			const globalPath = getRolesPath();
+			const roleNames = Object.keys(roles);
 
-			if (modeNames.length === 0) {
+			if (roleNames.length === 0) {
 				runtime.ctx.showWarning(
-					`No modes defined yet. Create a modes.yml file at global: ${globalPath} or local: .omp/modes.yml`,
+					`No roles defined yet. Create a roles.yml file at global: ${globalPath} or local: .omp/roles.yml`,
 				);
 				runtime.ctx.editor.setText("");
 				return;
@@ -82,15 +82,15 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 
 			const arg = command.args.trim();
 			if (!arg) {
-				await runtime.ctx.cycleMode();
+				await runtime.ctx.cycleRole();
 			} else if (arg === "session") {
-				await runtime.ctx.restoreSessionMode();
+				await runtime.ctx.restoreSessionRole();
 			} else {
-				const mode = modes[arg];
-				if (mode) {
-					await runtime.ctx.activateMode(arg, mode);
+				const role = roles[arg];
+				if (role) {
+					await runtime.ctx.activateRole(arg, role);
 				} else {
-					runtime.ctx.showWarning(`Mode '${arg}' not found in modes.yml. Available: ${modeNames.join(", ")}`);
+					runtime.ctx.showWarning(`Role '${arg}' not found in roles.yml. Available: ${roleNames.join(", ")}`);
 				}
 			}
 			runtime.ctx.editor.setText("");

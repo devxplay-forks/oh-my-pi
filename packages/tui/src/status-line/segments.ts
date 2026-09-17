@@ -371,8 +371,9 @@ const modelSegment: StatusLineSegment = {
 		if (!compact && thinkingDisplay) {
 			tail += `${theme.sep.dot}${thinkingDisplay}`;
 		}
-		if (ctx.activeModeName) {
-			tail += ` [${ctx.activeModeName}]`;
+		const activeName = ctx.activeRoleName ?? ctx.activeModeName;
+		if (activeName) {
+			tail += ` [${activeName}]`;
 		}
 
 		// `statusLineModel` is aliased to `accent` in many themes, so the badge

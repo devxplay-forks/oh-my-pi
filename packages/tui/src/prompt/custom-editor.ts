@@ -130,7 +130,7 @@ type ConfigurableEditorAction = Extract<
 	| "app.clipboard.pasteImage"
 	| "app.clipboard.pasteTextRaw"
 	| "app.clipboard.copyPrompt"
-	| "app.mode.toggle"
+	| "app.role.toggle"
 >;
 
 const DEFAULT_ACTION_KEYS: Record<ConfigurableEditorAction, KeyId[]> = {
@@ -144,7 +144,7 @@ const DEFAULT_ACTION_KEYS: Record<ConfigurableEditorAction, KeyId[]> = {
 	"app.model.cycleBackward": ["shift+ctrl+p"],
 	"app.model.select": ["alt+m"],
 	"app.model.selectTemporary": ["alt+p"],
-	"app.mode.toggle": ["alt+tab"],
+	"app.role.toggle": ["alt+tab"],
 	"app.message.dequeue": ["alt+up", "shift+up"],
 	"app.retry": ["f5", "alt+r"],
 	"app.clipboard.pasteImage": ["ctrl+v"],
@@ -1454,7 +1454,7 @@ export class CustomEditor extends Editor {
 	onExit?: () => void;
 	onDisplayReset?: () => void;
 	onCycleThinkingLevel?: () => void;
-	onToggleMode?: () => void;
+	onToggleRole?: () => void;
 	onCycleModelForward?: () => void;
 	onCycleModelBackward?: () => void;
 	onSelectModel?: () => void;
@@ -1770,8 +1770,8 @@ export class CustomEditor extends Editor {
 			}
 
 			// Intercept configured mode toggling
-			if (this.#matchesAction(canonical, "app.mode.toggle") && this.onToggleMode) {
-				this.onToggleMode();
+			if (this.#matchesAction(canonical, "app.role.toggle") && this.onToggleRole) {
+				this.onToggleRole();
 				return;
 			}
 

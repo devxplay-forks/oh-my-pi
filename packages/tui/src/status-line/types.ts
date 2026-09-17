@@ -94,6 +94,7 @@ export interface SegmentContext {
 	/** Key-sorted extension/hook status values. Segment renderers sanitize before display. */
 	hookStatuses?: readonly string[];
 	activeModeName?: string | undefined;
+	activeRoleName?: string | undefined;
 	planMode: {
 		enabled: boolean;
 		paused: boolean;

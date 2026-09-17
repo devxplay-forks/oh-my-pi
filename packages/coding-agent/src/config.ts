@@ -246,12 +246,12 @@ export function findAllNearestProjectConfigDirs(subpath: string, cwd: string = g
 	return results;
 }
 
-/** Get path to modes config in ~/.omp/agent/modes.yml */
-export function getModesPath(): string {
+/** Get path to roles config in ~/.omp/agent/roles.yml */
+export function getRolesPath(): string {
 	const agentDir = getAgentDir();
-	const yamlPath = path.join(agentDir, "modes.yml");
-	if (fs.existsSync(yamlPath)) return yamlPath;
-	const ymlPath = path.join(agentDir, "modes.yaml");
-	if (fs.existsSync(ymlPath)) return ymlPath;
-	return yamlPath; // default
+	for (const filename of ["roles.yml", "roles.yaml", "roles.json"]) {
+		const fullPath = path.join(agentDir, filename);
+		if (fs.existsSync(fullPath)) return fullPath;
+	}
+	return path.join(agentDir, "roles.yml");
 }

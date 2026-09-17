@@ -1152,6 +1152,10 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 		this.#vibeModeStatus = next;
 	}
 
+	setActiveRoleName(name: string | undefined): void {
+		this.setActiveModeName(name);
+	}
+
 	setActiveModeName(name: string | undefined): void {
 		if (this.#activeModeName === name) return;
 		this.#activeModeName = name;

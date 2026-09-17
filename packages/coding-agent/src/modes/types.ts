@@ -11,7 +11,7 @@ import type { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
 import type { TrackSegment } from "@oh-my-pi/pi-tui/chrome/segment-track";
 import type { Composer } from "@oh-my-pi/pi-tui/prompt/composer";
 import type { Settings } from "../config/settings";
-import type { ModeConfig } from "../core/modes";
+import type { RoleConfig } from "../core/roles";
 import type {
 	AutocompleteProviderFactory,
 	ExtensionCustomOptions,
@@ -600,9 +600,9 @@ export interface InteractiveModeContext {
 	toggleThinkingBlockVisibility(): void;
 	openExternalEditor(): void;
 	registerExtensionShortcuts(): void;
-	cycleMode(): Promise<void>;
-	activateMode(name: string, mode: ModeConfig | undefined): Promise<void>;
-	restoreSessionMode(): Promise<void>;
+	cycleRole(): Promise<void>;
+	activateRole(name: string, role: RoleConfig | undefined): Promise<void>;
+	restoreSessionRole(): Promise<void>;
 	handlePlanModeCommand(
 		initialPrompt?: string,
 		input?: Pick<SubmittedUserInput, "images" | "imageLinks">,

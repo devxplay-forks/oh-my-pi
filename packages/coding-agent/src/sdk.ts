@@ -4033,11 +4033,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					? { mode: "compact", toolNames: [...toolNames, ...mountedPromptToolNames] }
 					: { mode: "full" },
 			);
-			// Append mode-specific instructions to default append prompt if set on session
-			const modeInstructions = session?.getModeInstructions();
+			// Append role-specific instructions to default append prompt if set on session
+			const roleInstructions = session?.getRoleInstructions();
 			let finalAppendPrompt = appendPrompt;
-			if (modeInstructions) {
-				finalAppendPrompt = finalAppendPrompt ? `${finalAppendPrompt}\n\n${modeInstructions}` : modeInstructions;
+			if (roleInstructions) {
+				finalAppendPrompt = finalAppendPrompt ? `${finalAppendPrompt}\n\n${roleInstructions}` : roleInstructions;
 			}
 			const defaultPrompt = await buildSystemPromptInternal({
 				cwd: promptCwd,
@@ -4281,15 +4281,15 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		// then applies secret obfuscation to the remaining outbound context.
 		const convertToLlmFinal = (messages: AgentMessage[]): Message[] => {
 			const converted = filterProviderReplayMessages(convertToLlmWithBlockImages(messages));
-			const modeReminder = session?.getModeReminder();
-			if (modeReminder && converted.length > 0) {
+			const roleReminder = session?.getRoleReminder();
+			if (roleReminder && converted.length > 0) {
 				const lastMsg = converted[converted.length - 1];
 				if (lastMsg && (lastMsg.role === "user" || lastMsg.role === "toolResult")) {
 					const content = lastMsg.content;
 					if (typeof content === "string") {
-						lastMsg.content = `${content}\n\n${modeReminder}`;
+						lastMsg.content = `${content}\n\n${roleReminder}`;
 					} else if (Array.isArray(content)) {
-						content.push({ type: "text", text: modeReminder });
+						content.push({ type: "text", text: roleReminder });
 					}
 				}
 			}
@@ -4556,7 +4556,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			resolveFallbackTool: resolveDeviceTool,
 			suggestFallbackToolNames: suggestDeviceToolNames,
 			intentTracing: session
-				? (session.getModeIntentTracing() ?? cfgToolsIntentTracing.get(settings))
+				? (session.getRoleIntentTracing() ?? cfgToolsIntentTracing.get(settings))
 				: cfgToolsIntentTracing.get(settings),
 			pruneToolDescriptions: resolveInlineToolDescriptors(),
 			// Per request against the model actually requested, so `tools.format`

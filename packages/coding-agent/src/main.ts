@@ -171,6 +171,7 @@ import {
 	cfgTuiMaxInlineImages,
 	cfgTuiResizeScrollback,
 	cfgUpdateChannel,
+	cfgRoleDefault,
 } from "./modes/settings";
 import {
 	cfgDefaultThinkingLevel,
@@ -1801,6 +1802,7 @@ export async function runRootCommand(
 			process.stderr.write(`${chalk.red("Error: @file arguments are not supported in RPC mode")}\n`);
 			process.exit(1);
 		}
+
 		// A pending invalid `--mode` leaves `mode` unset; report it (exit 2) at the
 		// post-extension recheck before judging `--no-ui` against the mode.
 		if (parsedArgs.invalidFlagValues.length === 0) {
@@ -1947,6 +1949,15 @@ export async function runRootCommand(
 			Bun.env.PI_NO_TITLE = "1";
 		}
 
+		if (parsedArgs.role) {
+			const { loadRoles } = await import("./core/roles");
+			const roles = loadRoles(cwd);
+			if (!roles[parsedArgs.role]) {
+				process.stderr.write(`${chalk.red(`Error: Role '${parsedArgs.role}' is not defined in roles.yml`)}\n`);
+				process.exit(1);
+			}
+			cfgRoleDefault.override(settingsInstance, parsedArgs.role);
+		}
 		// Initialize discovery system with settings for provider persistence
 		logger.time("initializeWithSettings", initializeWithSettings, settingsInstance);
 

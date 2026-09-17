@@ -946,9 +946,9 @@ export class AgentSession implements SettingsScope {
 	#goalTurnCounter = 0;
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
-	#modeInstructions: string | undefined = undefined;
-	#modeReminder: string | undefined = undefined;
-	#modeIntentTracing: boolean | undefined = undefined;
+	#roleInstructions: string | undefined = undefined;
+	#roleReminder: string | undefined = undefined;
+	#roleIntentTracing: boolean | undefined = undefined;
 	#clientBridge: ClientBridge | undefined;
 	#allowAcpAgentInitiatedTurns = false;
 	/** Session file created by this session's `/move`; removed on dispose if it stayed empty. */
@@ -7028,29 +7028,29 @@ export class AgentSession implements SettingsScope {
 		}
 	}
 
-	setModeInstructions(instructions: string | undefined): void {
-		this.#modeInstructions = instructions;
+	setRoleInstructions(instructions: string | undefined): void {
+		this.#roleInstructions = instructions;
 		void this.refreshBaseSystemPrompt();
 	}
 
-	getModeInstructions(): string | undefined {
-		return this.#modeInstructions;
+	getRoleInstructions(): string | undefined {
+		return this.#roleInstructions;
 	}
 
-	setModeReminder(reminder: string | undefined): void {
-		this.#modeReminder = reminder;
+	setRoleReminder(reminder: string | undefined): void {
+		this.#roleReminder = reminder;
 	}
 
-	getModeReminder(): string | undefined {
-		return this.#modeReminder;
+	getRoleReminder(): string | undefined {
+		return this.#roleReminder;
 	}
 
-	setModeIntentTracing(intentTracing: boolean | undefined): void {
-		this.#modeIntentTracing = intentTracing;
+	setRoleIntentTracing(intentTracing: boolean | undefined): void {
+		this.#roleIntentTracing = intentTracing;
 	}
 
-	getModeIntentTracing(): boolean | undefined {
-		return this.#modeIntentTracing;
+	getRoleIntentTracing(): boolean | undefined {
+		return this.#roleIntentTracing;
 	}
 
 	getGoalModeState(): GoalModeState | undefined {

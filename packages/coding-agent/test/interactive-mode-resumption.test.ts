@@ -31,11 +31,11 @@ describe("InteractiveMode session resumption model preservation", () => {
 		const model = modelRegistry.find("anthropic", "claude-sonnet-4-5");
 		if (!model) throw new Error("Expected claude-sonnet-4-5 to exist in registry");
 
-		// Write a dummy modes.yml so we can activate custom modes
+		// Write a dummy roles.yml so we can activate custom roles
 		const ompDir = path.join(tempDir.path(), ".omp");
 		fs.mkdirSync(ompDir, { recursive: true });
 		fs.writeFileSync(
-			path.join(ompDir, "modes.yml"),
+			path.join(ompDir, "roles.yml"),
 			`
 fast:
   model: claude-haiku-4-5
@@ -69,15 +69,14 @@ fast:
 		// Verify initial model
 		expect(session.model?.id).toBe("claude-sonnet-4-5");
 
-		// Activate 'fast' mode
-		const { loadModes } = require("../src/core/modes");
-		const modeConfig = loadModes(tempDir.path()).fast;
-		await mode.activateMode("fast", modeConfig);
+		// Activate 'fast' role
+		const { loadRoles } = require("../src/core/roles");
+		const roleConfig = loadRoles(tempDir.path()).fast;
+		await mode.activateRole("fast", roleConfig);
 
-		// Model and thinking level should now reflect the mode
+		// Model and thinking level should now reflect the role
 		expect(session.model?.id).toBe("claude-haiku-4-5");
 		expect(session.thinkingLevel).toBe("off");
-
 		// Simulate session reload/resume
 		const savedSessionFile = session.sessionFile;
 		expect(savedSessionFile).toBeDefined();
@@ -102,37 +101,37 @@ fast:
 		});
 		const newMode = new InteractiveMode(newSession, "test");
 
-		await newMode.restoreModeFromSession();
-		// The new mode has the 'fast' mode active, but its baseline should be the session's original model!
-		expect(newMode.activeModeName).toBe("fast");
+		await newMode.restoreRoleFromSession();
+		// The new mode has the 'fast' role active, but its baseline should be the session's original model!
+		expect(newMode.activeRoleName).toBe("fast");
 
-		// When we switch back to 'session' mode, it should restore the original 'claude-sonnet-4-5'!
-		await newMode.restoreSessionMode();
+		// When we switch back to 'session' role, it should restore the original 'claude-sonnet-4-5'!
+		await newMode.restoreSessionRole();
 		expect(newSession.model?.id).toBe("claude-sonnet-4-5");
 
 		newMode.stop();
 		await newSession.dispose();
 	});
 
-	it("reverts back to default session mode when starting a new session via newSession", async () => {
+	it("reverts back to default session role when starting a new session via newSession", async () => {
 		// Verify initial state
 		expect(session.model?.id).toBe("claude-sonnet-4-5");
 
-		// Activate 'fast' mode
-		const { loadModes } = require("../src/core/modes");
-		const modeConfig = loadModes(tempDir.path()).fast;
-		await mode.activateMode("fast", modeConfig);
-		expect(mode.activeModeName).toBe("fast");
+		// Activate 'fast' role
+		const { loadRoles } = require("../src/core/roles");
+		const roleConfig = loadRoles(tempDir.path()).fast;
+		await mode.activateRole("fast", roleConfig);
+		expect(mode.activeRoleName).toBe("fast");
 		expect(session.model?.id).toBe("claude-haiku-4-5");
 
 		// Set up the sessionSwitchReconciler
-		session.setSessionSwitchReconciler(() => mode.restoreModeFromSession());
+		session.setSessionSwitchReconciler(() => mode.restoreRoleFromSession());
 
 		// Call newSession (recreating starting a new session /new)
 		const success = await session.newSession();
 		expect(success).toBe(true);
 
-		// Since it is a new session with no custom entries, active mode name should be reset (no longer 'fast' / 'hard')
-		expect(mode.activeModeName).toBeUndefined();
+		// Since it is a new session with no custom entries, active role name should be reset (no longer 'fast' / 'hard')
+		expect(mode.activeRoleName).toBeUndefined();
 	});
 });

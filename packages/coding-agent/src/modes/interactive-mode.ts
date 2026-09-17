@@ -4,10 +4,6 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { loadModes, type ModeConfig, type SessionBaseline } from "../core/modes";
-
-const MODE_CHANGE_ENTRY_TYPE = "mode_change";
-
 import {
 	type Agent,
 	AgentBusyError,
@@ -79,6 +75,7 @@ import { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
 import { appKey, editorKey, rawKeyHint } from "@oh-my-pi/pi-tui/chrome/keybinding-hints";
 import { formatModelString, type ResolvedModelRoleValue } from "../config/model-resolver";
 import { isSettingsInitialized, Settings, settings } from "../config/settings";
+import { loadRoles, ROLE_CHANGE_ENTRY_TYPE, type RoleConfig, type SessionBaseline } from "../core/roles";
 import { clearClaudePluginRootsCache } from "../discovery/helpers";
 import type {
 	AutocompleteProviderFactory,
@@ -361,7 +358,7 @@ import {
 	cfgGitEnabled,
 	cfgLoopConditionTimeoutMs,
 	cfgLoopMode,
-	cfgModeDefault,
+	cfgRoleDefault,
 	cfgMagicKeywordsEnabled,
 	cfgRecapEnabled,
 	cfgRecapIdleSeconds,
@@ -1226,7 +1223,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	hookWidgetContainerBelow: Container;
 	statusLine: StatusLineComponent;
 
-	activeModeName: string | undefined = undefined;
+	activeRoleName: string | undefined = undefined;
 	sessionBaseline: SessionBaseline | undefined = undefined;
 	isInitialized = false;
 	initialChatRendered = false;
@@ -4924,7 +4921,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	/** Reconcile mode state from session entries on resume/switch. */
 	async #reconcileModeFromSession(options?: { preserveActiveGoal?: boolean }): Promise<void> {
-		await this.restoreModeFromSession();
+		await this.restoreRoleFromSession();
 		await this.#clearTransientModeState();
 		const vibeScopeAlreadySuspended = this.#vibeScopeSuspendedForSwitch;
 		this.#vibeScopeSuspendedForSwitch = false;
@@ -8132,40 +8129,40 @@ export class InteractiveMode implements InteractiveModeContext {
 		return this.#commandController.handleMemoryCommand(text);
 	}
 
-	async cycleMode(): Promise<void> {
-		const modes = loadModes(this.sessionManager.getCwd());
-		const modeNames = Object.keys(modes);
-		if (modeNames.length === 0) {
-			const { getModesPath } = require("../core/modes");
-			const globalPath = getModesPath();
+	async cycleRole(): Promise<void> {
+		const roles = loadRoles(this.sessionManager.getCwd());
+		const roleNames = Object.keys(roles);
+		if (roleNames.length === 0) {
+			const { getRolesPath } = require("../core/roles");
+			const globalPath = getRolesPath();
 			this.showWarning(
-				`No modes defined yet. Create a modes.yml file at global: ${globalPath} or local: .omp/modes.yml`,
+				`No roles defined yet. Create a roles.yml file at global: ${globalPath} or local: .omp/roles.yml`,
 			);
 			this.ui.requestRender();
 			return;
 		}
 
-		if (!this.activeModeName) {
-			// session -> first mode
-			await this.activateMode(modeNames[0], modes[modeNames[0]]);
+		if (!this.activeRoleName) {
+			// session -> first role
+			await this.activateRole(roleNames[0], roles[roleNames[0]]);
 		} else {
-			const currentIndex = modeNames.indexOf(this.activeModeName);
+			const currentIndex = roleNames.indexOf(this.activeRoleName);
 			const nextIndex = currentIndex + 1;
-			if (nextIndex < modeNames.length) {
-				// current mode -> next mode
-				await this.activateMode(modeNames[nextIndex], modes[modeNames[nextIndex]]);
+			if (nextIndex < roleNames.length) {
+				// current role -> next role
+				await this.activateRole(roleNames[nextIndex], roles[roleNames[nextIndex]]);
 			} else {
-				// last mode -> back to session
-				await this.restoreSessionMode();
+				// last role -> back to session
+				await this.restoreSessionRole();
 			}
 		}
 	}
 
-	async activateMode(name: string, mode: ModeConfig | undefined): Promise<void> {
-		if (!mode) {
+	async activateRole(name: string, role: RoleConfig | undefined): Promise<void> {
+		if (!role) {
 			return;
 		}
-		if (!this.activeModeName) {
+		if (!this.activeRoleName) {
 			const currentThinkingLevel = this.session.thinkingLevel;
 			this.sessionBaseline = {
 				model: this.session.model,
@@ -8173,37 +8170,37 @@ export class InteractiveMode implements InteractiveModeContext {
 			};
 		}
 
-		if (mode.provider && mode.model) {
-			const targetModel = this.session.modelRegistry.find(mode.provider, mode.model);
+		if (role.provider && role.model) {
+			const targetModel = this.session.modelRegistry.find(role.provider, role.model);
 			if (targetModel) {
 				try {
 					await this.session.setModel(targetModel, "default", { persist: false, persistSession: false });
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
-					this.showWarning(`Mode '${name}': ${msg}`);
+					this.showWarning(`Role '${name}': ${msg}`);
 				}
 			} else {
-				this.showWarning(`Mode '${name}': model ${mode.provider}/${mode.model} not found`);
+				this.showWarning(`Role '${name}': model ${role.provider}/${role.model} not found`);
 			}
 		}
 
-		if (mode.thinkingLevel !== undefined) {
-			this.session.setThinkingLevel(mode.thinkingLevel, false);
+		if (role.thinkingLevel !== undefined) {
+			this.session.setThinkingLevel(role.thinkingLevel, false);
 		}
 
-		this.session.setModeInstructions(mode.instructions);
-		this.session.setModeReminder(mode.reminder);
-		this.session.setModeIntentTracing(mode.intentTracing);
-		this.activeModeName = name;
-		(this.statusLine as any).setActiveModeName?.(name);
-		this.sessionManager.appendCustomEntry(MODE_CHANGE_ENTRY_TYPE, { name });
+		this.session.setRoleInstructions(role.instructions ?? role.guidelines);
+		this.session.setRoleReminder(role.reminder);
+		this.session.setRoleIntentTracing(role.intentTracing);
+		this.activeRoleName = name;
+		this.statusLine.setActiveRoleName(name);
+		this.sessionManager.appendCustomEntry(ROLE_CHANGE_ENTRY_TYPE, { name });
 		this.statusLine.invalidate();
 		this.updateEditorBorderColor();
 		this.ui.requestRender();
-		this.showStatus(`Switched to ${name} mode`);
+		this.showStatus(`Switched to ${name} role`);
 	}
 
-	async restoreSessionMode(): Promise<void> {
+	async restoreSessionRole(): Promise<void> {
 		if (this.sessionBaseline) {
 			if (this.sessionBaseline.model) {
 				try {
@@ -8218,54 +8215,54 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.session.setThinkingLevel(this.sessionBaseline.thinkingLevel, false);
 		}
 
-		this.session.setModeInstructions(undefined);
-		this.session.setModeReminder(undefined);
-		this.session.setModeIntentTracing(undefined);
-		this.activeModeName = undefined;
-		(this.statusLine as any).setActiveModeName?.(undefined);
-		this.sessionManager.appendCustomEntry(MODE_CHANGE_ENTRY_TYPE, { name: undefined });
+		this.session.setRoleInstructions(undefined);
+		this.session.setRoleReminder(undefined);
+		this.session.setRoleIntentTracing(undefined);
+		this.activeRoleName = undefined;
+		this.statusLine.setActiveRoleName(undefined);
+		this.sessionManager.appendCustomEntry(ROLE_CHANGE_ENTRY_TYPE, { name: undefined });
 		this.statusLine.invalidate();
 		this.updateEditorBorderColor();
 		this.ui.requestRender();
-		this.showStatus("Switched to session mode");
+		this.showStatus("Switched to session role");
 	}
 
-	async restoreModeFromSession(): Promise<void> {
-		this.activeModeName = undefined;
+	async restoreRoleFromSession(): Promise<void> {
+		this.activeRoleName = undefined;
 		this.sessionBaseline = undefined;
-		(this.statusLine as any).setActiveModeName?.(undefined);
-		this.session.setModeInstructions(undefined);
-		this.session.setModeReminder(undefined);
-		this.session.setModeIntentTracing(undefined);
+		this.statusLine.setActiveRoleName(undefined);
+		this.session.setRoleInstructions(undefined);
+		this.session.setRoleReminder(undefined);
+		this.session.setRoleIntentTracing(undefined);
 
 		const entries = this.sessionManager.getEntries();
-		let persistedModeName: string | undefined;
+		let persistedRoleName: string | undefined;
 		for (let i = entries.length - 1; i >= 0; i--) {
 			const entry = entries[i];
-			if (entry.type === "custom" && entry.customType === MODE_CHANGE_ENTRY_TYPE) {
+			if (entry.type === "custom" && entry.customType === ROLE_CHANGE_ENTRY_TYPE) {
 				const data = entry.data as { name?: string } | undefined;
-				persistedModeName = data?.name;
+				persistedRoleName = data?.name;
 				break;
 			}
 		}
 
-		if (!persistedModeName) {
+		if (!persistedRoleName) {
 			const startReason = this.session.getSessionStartEventReason?.() ?? "resume";
 			const isBrandNewSession = startReason === "new" || startReason === "startup";
 
 			if (isBrandNewSession) {
-				const configuredDefaultModeName = cfgModeDefault.get(this.session.settings);
-				if (configuredDefaultModeName) {
-					const modes = loadModes(this.sessionManager.getCwd());
-					const mode = modes[configuredDefaultModeName];
-					if (mode) {
+				const configuredDefaultRoleName = cfgRoleDefault.get(this.session.settings);
+				if (configuredDefaultRoleName) {
+					const roles = loadRoles(this.sessionManager.getCwd());
+					const role = roles[configuredDefaultRoleName];
+					if (role) {
 						const currentThinkingLevel = this.session.thinkingLevel;
 						this.sessionBaseline = {
 							model: this.session.model,
 							thinkingLevel: currentThinkingLevel ?? ThinkingLevel.Off,
 						};
-						if (mode.provider && mode.model) {
-							const targetModel = this.session.modelRegistry.find(mode.provider, mode.model);
+						if (role.provider && role.model) {
+							const targetModel = this.session.modelRegistry.find(role.provider, role.model);
 							if (targetModel) {
 								try {
 									await this.session.setModel(targetModel, "default", {
@@ -8275,15 +8272,15 @@ export class InteractiveMode implements InteractiveModeContext {
 								} catch {}
 							}
 						}
-						if (mode.thinkingLevel !== undefined) {
-							this.session.setThinkingLevel(mode.thinkingLevel, false);
+						if (role.thinkingLevel !== undefined) {
+							this.session.setThinkingLevel(role.thinkingLevel, false);
 						}
-						this.session.setModeInstructions(mode.instructions);
-						this.session.setModeReminder(mode.reminder);
-						this.session.setModeIntentTracing(mode.intentTracing);
-						this.activeModeName = configuredDefaultModeName;
-						(this.statusLine as any).setActiveModeName?.(configuredDefaultModeName);
-						this.sessionManager.appendCustomEntry(MODE_CHANGE_ENTRY_TYPE, { name: configuredDefaultModeName });
+						this.session.setRoleInstructions(role.instructions ?? role.guidelines);
+						this.session.setRoleReminder(role.reminder);
+						this.session.setRoleIntentTracing(role.intentTracing);
+						this.activeRoleName = configuredDefaultRoleName;
+						this.statusLine.setActiveRoleName(configuredDefaultRoleName);
+						this.sessionManager.appendCustomEntry(ROLE_CHANGE_ENTRY_TYPE, { name: configuredDefaultRoleName });
 					}
 				}
 			}
@@ -8292,9 +8289,9 @@ export class InteractiveMode implements InteractiveModeContext {
 			return;
 		}
 
-		const modes = loadModes(this.sessionManager.getCwd());
-		const mode = modes[persistedModeName];
-		if (!mode) {
+		const roles = loadRoles(this.sessionManager.getCwd());
+		const role = roles[persistedRoleName];
+		if (!role) {
 			this.statusLine.invalidate();
 			this.ui.requestRender();
 			return;
@@ -8306,8 +8303,8 @@ export class InteractiveMode implements InteractiveModeContext {
 			thinkingLevel: currentThinkingLevel ?? ThinkingLevel.Off,
 		};
 
-		if (mode.provider && mode.model) {
-			const targetModel = this.session.modelRegistry.find(mode.provider, mode.model);
+		if (role.provider && role.model) {
+			const targetModel = this.session.modelRegistry.find(role.provider, role.model);
 			if (targetModel) {
 				try {
 					await this.session.setModel(targetModel, "default", { persist: false, persistSession: false });
@@ -8319,15 +8316,15 @@ export class InteractiveMode implements InteractiveModeContext {
 			}
 		}
 
-		if (mode.thinkingLevel !== undefined) {
-			this.session.setThinkingLevel(mode.thinkingLevel, false);
+		if (role.thinkingLevel !== undefined) {
+			this.session.setThinkingLevel(role.thinkingLevel, false);
 		}
 
-		this.session.setModeInstructions(mode.instructions);
-		this.session.setModeReminder(mode.reminder);
-		this.session.setModeIntentTracing(mode.intentTracing);
-		this.activeModeName = persistedModeName;
-		(this.statusLine as any).setActiveModeName?.(persistedModeName);
+		this.session.setRoleInstructions(role.instructions ?? role.guidelines);
+		this.session.setRoleReminder(role.reminder);
+		this.session.setRoleIntentTracing(role.intentTracing);
+		this.activeRoleName = persistedRoleName;
+		this.statusLine.setActiveRoleName(persistedRoleName);
 		this.statusLine.invalidate();
 		this.ui.requestRender();
 	}

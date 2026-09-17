@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getModesPath } from "@oh-my-pi/pi-coding-agent/config";
-import { loadModes } from "@oh-my-pi/pi-coding-agent/core/modes";
+import { getRolesPath } from "@oh-my-pi/pi-coding-agent/config";
+import { loadRoles } from "@oh-my-pi/pi-coding-agent/core/roles";
 import { renderSegment } from "@oh-my-pi/pi-tui/status-line";
 import type { SegmentContext } from "@oh-my-pi/pi-tui/status-line";
 import { initTheme } from "@oh-my-pi/pi-tui/theme";
@@ -21,7 +21,7 @@ describe("Alt+Tab diagnostic", () => {
 	});
 });
 
-function createModeSegmentContext(activeModeName?: string): SegmentContext {
+function createRoleSegmentContext(activeRoleName?: string): SegmentContext {
 	return {
 		session: {
 			state: { model: { id: "test-model", name: "Test Model" } },
@@ -40,7 +40,7 @@ function createModeSegmentContext(activeModeName?: string): SegmentContext {
 		goalMode: null,
 		vibeMode: null,
 		vim: null,
-		activeModeName,
+		activeRoleName,
 		collab: null,
 		stream: null,
 		recording: false,
@@ -72,19 +72,19 @@ function createModeSegmentContext(activeModeName?: string): SegmentContext {
 	};
 }
 
-describe("Modes implementation", () => {
-	it("correctly loads global and project-local modes", () => {
-		const tempDir = fs.mkdtempSync(path.join(path.dirname(getModesPath()), "omp-modes-test-"));
+describe("Roles implementation", () => {
+	it("correctly loads global and project-local roles", () => {
+		const tempDir = fs.mkdtempSync(path.join(path.dirname(getRolesPath()), "omp-roles-test-"));
 		try {
-			const globalModesFile = getModesPath();
-			const projectModesDir = path.join(tempDir, ".omp");
-			fs.mkdirSync(projectModesDir, { recursive: true });
+			const globalRolesFile = getRolesPath();
+			const projectRolesDir = path.join(tempDir, ".omp");
+			fs.mkdirSync(projectRolesDir, { recursive: true });
 
-			const originalGlobalExists = fs.existsSync(globalModesFile);
-			const originalGlobalContent = originalGlobalExists ? fs.readFileSync(globalModesFile, "utf8") : "";
+			const originalGlobalExists = fs.existsSync(globalRolesFile);
+			const originalGlobalContent = originalGlobalExists ? fs.readFileSync(globalRolesFile, "utf8") : "";
 
 			fs.writeFileSync(
-				globalModesFile,
+				globalRolesFile,
 				`
 fast:
   model: gemini-flash
@@ -96,7 +96,7 @@ high:
 `,
 			);
 			fs.writeFileSync(
-				path.join(projectModesDir, "modes.yml"),
+				path.join(projectRolesDir, "roles.yml"),
 				`
 fast:
   model: gpt-4o-mini
@@ -108,17 +108,17 @@ custom:
 			);
 
 			try {
-				const modes = loadModes(tempDir);
-				expect(modes.fast.provider).toBe("openai"); // Project overridden
-				expect(modes.fast.model).toBe("gpt-4o-mini");
-				expect(modes.high.provider).toBe("anthropic"); // Kept from global
-				expect(modes.custom.provider).toBe("custom-provider"); // Added in project
+				const roles = loadRoles(tempDir);
+				expect(roles.fast.provider).toBe("openai"); // Project overridden
+				expect(roles.fast.model).toBe("gpt-4o-mini");
+				expect(roles.high.provider).toBe("anthropic"); // Kept from global
+				expect(roles.custom.provider).toBe("custom-provider"); // Added in project
 			} finally {
 				if (originalGlobalExists) {
-					fs.writeFileSync(globalModesFile, originalGlobalContent);
+					fs.writeFileSync(globalRolesFile, originalGlobalContent);
 				} else {
 					try {
-						fs.unlinkSync(globalModesFile);
+						fs.unlinkSync(globalRolesFile);
 					} catch {}
 				}
 			}
@@ -129,11 +129,11 @@ custom:
 		}
 	});
 
-	it("renders active mode in status line model segment when activeModeName is present", () => {
-		const renderedWithMode = renderSegment("model", createModeSegmentContext("customMode"));
-		expect(renderedWithMode.content).toContain("[customMode]");
+	it("renders active role in status line model segment when activeRoleName is present", () => {
+		const renderedWithRole = renderSegment("model", createRoleSegmentContext("customRole"));
+		expect(renderedWithRole.content).toContain("[customRole]");
 
-		const renderedWithoutMode = renderSegment("model", createModeSegmentContext(undefined));
-		expect(renderedWithoutMode.content).not.toContain("[customMode]");
+		const renderedWithoutRole = renderSegment("model", createRoleSegmentContext(undefined));
+		expect(renderedWithoutRole.content).not.toContain("[customRole]");
 	});
 });

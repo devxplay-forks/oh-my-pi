@@ -134,6 +134,9 @@ export const STRING_SETTERS: Record<string, StringSetter> = {
 			);
 		}
 	},
+	"--role": (result, value) => {
+		result.role = value;
+	},
 	"--fork": (result, value) => {
 		result.fork = value;
 	},

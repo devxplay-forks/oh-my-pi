@@ -39,15 +39,16 @@ export const cfgAutoResume = register({
 	},
 });
 
-export const cfgModeDefault = register({
-	id: "mode.default",
+export const cfgRoleDefault = register({
+	id: "role.default",
+	alias: ["mode.default", "defaultRole"],
 	type: "string",
 	default: "",
 	ui: {
 		tab: "tasks",
-		group: "Modes",
-		label: "Default Mode",
-		description: "Default mode to enter on startup (from modes.yml)",
+		group: "Roles",
+		label: "Default Role",
+		description: "Default role to enter on startup (from roles.yml)",
 	},
 });
 
