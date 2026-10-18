@@ -55,6 +55,18 @@ compaction-results/
 changes/
 __pycache__/
 
+# Goals, plans & agent artifacts
+.goals
+.plans
+plans/
+.artifacts/
+.claude/
+.linear.toml
+.pi/hf-sessions/
+.pi/hf-sessions-backup/
+todo.md
+collect.sh
+
 # Scratch files
 syntax.jsonl
 out.jsonl

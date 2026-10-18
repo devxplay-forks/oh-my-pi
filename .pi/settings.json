@@ -1,0 +1,13 @@
+{
+  "goal": {
+    "verify": {
+      "enabled": true,
+      "command": "bun run check && bun run ci:test:smoke",
+      "timeout": 600
+    },
+    "reviewer": {
+      "enabled": true,
+      "log": true
+    }
+  }
+}
