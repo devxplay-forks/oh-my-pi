@@ -118,7 +118,7 @@ export const KEYBINDINGS = {
 		description: "Toggle thinking mode",
 	},
 	"app.role.toggle": {
-		defaultKeys: "alt+tab",
+		defaultKeys: "alt+`",
 		description: "Cycle role",
 	},
 	"app.model.cycleForward": {
